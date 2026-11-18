@@ -85,7 +85,7 @@ export default class WorkspaceChrome extends View {
           .when(Boolean(updates().app.ready), el => el.child(div().size(6).rounded_full().bg(t.accent))))
         // The Spaces list's help and options (over9k-options): Herdr's Settings has no room for a mod's.
         // A newer Over9k: an Update chip (on the rail, a dot), and the notice inside.
-        .child(row("over9k-options", "panel-left", "Over9k help & options", false, () => openOverlay({ mod: "over9k-options", kind: "dialog", width: 740, height: 600 }))
+        .child(row("over9k-options", "panel-left", "Workspace help & options", false, () => openOverlay({ mod: "over9k-options", kind: "dialog", width: 740, height: 600 }))
           .when(news && !collapsed, el => el.child(div().ml_auto().flex_none().px(5).py(1).rounded(4).bg(t.ansi1 + "26").text_size(10.5).text_color(t.ansi1).child("Update")))
           .when(news && collapsed, el => el.child(div().size(6).rounded_full().bg(t.ansi1))))
         .child(row("machine", "plus", "Add machine", true, () => run("mod.open", { name: "machine-add" })));

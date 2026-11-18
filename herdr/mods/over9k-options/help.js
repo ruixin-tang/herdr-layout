@@ -332,7 +332,7 @@ export function helpTopics(view, t) {
       topic("Updates",
         side(
           frame(h_flex().h(28).px(8).gap(9).items_center().text_color(t.muted)
-            .child(icon(`${CHROME}/panel-left.svg`, 14, t.muted)).child("Over9k help & options")
+            .child(icon(`${CHROME}/panel-left.svg`, 14, t.muted)).child("Workspace help & options")
             .child(div().ml_auto().flex_none().px(5).py(1).rounded(4).bg(t.ansi1 + "26").text_size(10.5).text_color(t.ansi1).child("Update"))),
           v_flex().flex_none().p(10).gap(3).rounded(8).border_1().border_color(t.accent + "66").bg(t.accent + "14").text_size(12)
             .child(h_flex().gap(10).items_center().child(div().flex_1().font_semibold().text_color(t.foreground).child("Update available \u00b7 2 changes"))

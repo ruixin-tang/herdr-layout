@@ -2705,7 +2705,7 @@ export default class Spaces extends View {
         .items_center().rounded(7).cursor_pointer().text_color(t.muted).border_t(1).border_color(t.border)
         .hover((s) => s.bg(t.hover).text_color(t.foreground))
         .on_click(() => openOverlay({ mod: "over9k-options", kind: "dialog", width: 740, height: 600 }))
-        .child(svg("mods/workspace-chrome/settings.svg").size(14).flex_none()).child("Over9k help & options")));
+        .child(svg("mods/workspace-chrome/settings.svg").size(14).flex_none()).child("Workspace help & options")));
   }
 }
 
