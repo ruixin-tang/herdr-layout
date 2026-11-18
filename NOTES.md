@@ -28,6 +28,7 @@ Live Herdr files are under `~/.config/herdr-app/`:
 | `mods/agenda` | right panel, bottom | Today's meetings with room and Join link. |
 | `mods/crew` | above the terminals | The mountain: every agent is a skier (hiker from April to October). Real sky, sun, clouds and rain; a clock top left. An agent's running sub-agents are small figures in its colour right behind it (up to 4, then "+n"): Claude Code's from shared `over9k.subs`, Herdr's own from `terminals()` with a `parent`. |
 | `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; offers the brief after Morning start ran by itself; also runs the theme switch, the daily backup and the compact layout: a window narrower than 1800 px (the laptop screen) gets the strip at 160 px instead of 260, and the right panel at 312 instead of 368, shared as `compact`: the mountain draws itself smaller, and the weather (a line per place, no bars), trains (the next train I can catch) and agenda (what is on now or next) blocks make themselves one line each; a click on the line shows the whole block, its "less" link folds it again (not kept over a restart). `forest-sprite.compact` switches by hand. Shortcut training (`shortcuts.js`): when I change space or tab, open a tab, split or zoom by clicking, it shows the key for it for 8 seconds and how often I clicked today; done by key, a short cheer with the key. It tells the two apart by a mouse press in the 1.5 seconds before; keys are read from `keys.json`; counts in shared `shortcuts.today`. Going to an agent that needs me, opening My work and starting a stack by clicking are answered with my own keys. |
+| `mods/dutch` | dialog | The Dutch lesson. When the calendar's "Dutch" event starts, the sprite opens it nearly as large as the window: "Kijk nu" opens the NOS Journaal in Makkelijke Taal on NPO Start, 8 minutes later the day counts as done and the streak grows. Esc snoozes 5 minutes (the sprite opens it again), "Niet vandaag" asks twice and ends the streak. State in shared `dutch`. Ruixin asked for this to be harsh: "I tend to just SKIP it". |
 | `mods/korok` | floating in the sidebar | Cheers when a ticket is done or a PR is merged. |
 | `mods/dev-servers` | sidebar | One light per dev stack (Platform :3000, AIS :4000), start/stop, links to the staging and production remote shells. Also does Morning start: fast-forwards master in `~/floryn` and `~/ais` (only a checkout on master without changes to tracked files), then starts the stacks that are not running. Runs from the "Morning start" row, from `dev-servers.morning`, and by itself on a working day from 06:00 the first time an agent is working. Shares its steps as `morning`. |
 | `mods/morning` | dialog | The Morning start brief: the steps above, what changed since 17:00 on the last working day (my PRs merged, reviews asked of me by name, red CI on master or my open PRs), today's meetings and duty. Does no work itself. Sets `morning.seen`. |
@@ -74,6 +75,12 @@ Nothing: the four items of 18 November 2026 are built. What is left is seeing th
 
 ## Built but never seen working
 
+- The Dutch lesson dialog: opening at the event's start, the snooze, the 8 minutes, the
+  streak, "Niet vandaag". Built at 16:55 on 18 November 2026, five minutes before its first
+  event. Whether NPO Start plays without an account, and how long an episode really is.
+- Music: asked for on 18 November, not built. Ruixin listens on YouTube in Chrome. A mod can
+  read the playing tab's title through AppleScript, but play/pause needs Chrome's "Allow
+  JavaScript from Apple Events" (off); the other way is mpv with yt-dlp (not installed).
 - Morning start running by itself at the first session of a day, and the sprite's offer of
   the brief afterwards (first chance: 19 November 2026). The brief with real rows (a merged
   PR, a review request, red CI): on 18 November GitHub had none, checked by hand.

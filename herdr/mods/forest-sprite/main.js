@@ -1,11 +1,14 @@
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, theme, run, shared, setShared, layout, placement, readTextFile, exec, home, appHome, checking, nextCommand } from "herdr";
+import { agents, theme, run, shared, setShared, layout, placement, readTextFile, exec, home, appHome, checking, nextCommand, openOverlay } from "herdr";
 import { Trainer } from "./shortcuts.js";
 
 // A small forest sprite that floats over the window and follows the work:
 //   I clicked what a key does -> shows that key for a few seconds (shortcuts.js); a short cheer when I used the key
 //   an agent is blocked      -> startled, an orange "!"; a click goes to that agent
+//   my Dutch lesson is due   -> opens the `dutch` dialog over the whole window when the calendar's
+//                               "Dutch" event starts, again 5 minutes after every Esc, and says so
+//                               in between, until I watched the Journaal or said "not today"
 //   a meeting starts soon    -> says which and when; a click joins it (or just quiets it)
 //   Morning start ran        -> once a day: says so; a click opens the brief
 //   my train home is late    -> says which; a click quiets it
@@ -23,6 +26,8 @@ const SOON = 10 * 60000, LATE = 5 * 60000;
 // as the sign to wrap up. The themes are the Sheikah one turned to that hour's hue.
 const SKY = [["06:00", "sheikah-dawn", "#3b2c44", "#0a1118"], ["10:00", "sheikah", "#0e2e38", "#050d10"], ["14:30", "sheikah-dusk", "#4a2a1c", "#0c0a12"], ["17:15", "sheikah-night", "#0b1636", "#02040a"]];
 const LAYOUT = "over9k";
+// The calendar event that is my Dutch lesson, and how long an Esc on its dialog buys.
+const DUTCH = /dutch|nederlands/i, SNOOZE = 5 * 60000;
 // The compact layout, for the laptop screen: a window narrower than LAPTOP gets a lower
 // mountain strip and a narrower right panel, [block, full px, compact px]. The weather, trains
 // and agenda blocks read the shared "compact" and make themselves one line each.
@@ -82,7 +87,8 @@ export default class ForestSprite extends View {
     cx.spawn(async (cx) => {
       try {
         if (shared("layout") !== LAYOUT) return;
-        const narrow = JSON.parse(await readTextFile(`${appHome()}/window.json`)).bounds[2] < LAPTOP;
+        const bounds = JSON.parse(await readTextFile(`${appHome()}/window.json`)).bounds, narrow = bounds[2] < LAPTOP;
+        this.win = [bounds[2], bounds[3]];
         const own = localStorage.getItem("compact");
         if (own === (narrow ? "on" : "off")) localStorage.removeItem("compact");
         const compact = own ? own === "on" : narrow;
@@ -109,8 +115,26 @@ export default class ForestSprite extends View {
   loadMeetings(cx) {
     cx.spawn(async (cx) => {
       try { this.meetings = JSON.parse((await readTextFile(MEETINGS)) ?? "{}").meetings ?? []; } catch { /* next minute */ }
+      this.lesson();
       cx.notify();
     });
+  }
+
+  // Today's Dutch lesson from the calendar, once it has started and while it is neither done nor skipped.
+  lessonDue() {
+    const now = Date.now(), day = new Date().toDateString(), s = shared("dutch") ?? {};
+    const m = this.meetings.find((x) => DUTCH.test(x.title) && new Date(x.start).toDateString() === day && x.start <= now);
+    return m && !(s.day === day && (s.done || s.skipped)) ? m : null;
+  }
+
+  // The dialog, nearly as large as the window. By itself only when it is not open already
+  // (opened after it was last closed, and not longer than half an hour ago) and the snooze is over.
+  lesson(asked = false) {
+    if (!this.lessonDue() || shared("layout") !== LAYOUT) return;
+    const s = shared("dutch") ?? {}, now = Date.now(), today = s.day === new Date().toDateString();
+    const open = today && s.openedAt > (s.closedAt ?? 0) && now - s.openedAt < 1800000;
+    if (open || (!asked && today && now - (s.closedAt ?? 0) < SNOOZE)) return;
+    openOverlay({ mod: "dutch", kind: "dialog", width: (this.win?.[0] ?? 1100) - 60, height: (this.win?.[1] ?? 700) - 60 });
   }
 
   // The meeting about to start (10 minutes ahead) or just started (5 minutes in), unless quieted.
@@ -132,6 +156,7 @@ export default class ForestSprite extends View {
     if (note) return note.clicked
       ? { art: "busy", bubble: note.key, color: "accent", say: `Next time: ${note.key} for ${note.label}.${note.clicks > 1 ? ` Clicked ${note.clicks} times today.` : ""}`, tip: "The key for what you just clicked", bob: 900, wide: true, go: null }
       : { art: "happy", bubble: note.key, color: "done", tip: "Done by key", bob: 600, go: null };
+    if (this.lessonDue()) return { art: "alert", bubble: "NL", color: "accent", say: "Het Journaal in Makkelijke Taal wacht op je.", tip: "Click for the Dutch lesson", bob: 700, wide: true, go: () => this.lesson(true) };
     const meet = this.meeting();
     if (meet && !blocked) {
       const mins = Math.round((meet.start - Date.now()) / 60000);
