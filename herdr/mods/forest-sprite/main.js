@@ -1,8 +1,10 @@
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, theme, run, shared, setShared, placement, readTextFile, exec, home, appHome, checking, nextCommand } from "herdr";
+import { Trainer } from "./shortcuts.js";
 
 // A small forest sprite that floats over the window and follows the work:
+//   I clicked what a key does -> shows that key for a few seconds (shortcuts.js); a short cheer when I used the key
 //   an agent is blocked      -> startled, an orange "!"; a click goes to that agent
 //   a meeting starts soon    -> says which and when; a click joins it (or just quiets it)
 //   Morning start ran        -> once a day: says so; a click opens the brief
@@ -42,6 +44,8 @@ export default class ForestSprite extends View {
         }
       });
     }
+    this.trainer = new Trainer();
+    if (!checking()) cx.timer.every(1000, (cx) => { if (this.trainer.over()) cx.notify(); });
     // The count already seen: only a rise wakes the sprite, not the standing pile.
     this.seen = Number(localStorage.getItem("seen") ?? -1);
   }
@@ -103,6 +107,11 @@ export default class ForestSprite extends View {
     const list = agents(), todo = Number(shared("my-work.action") ?? 0);
     if (this.seen < 0 || todo < this.seen) this.see(todo);
     const blocked = list.find((a) => a.status === "blocked");
+    // Shortcut training comes first: it is about what I did a second ago, and it is gone in a few.
+    const note = this.trainer.current();
+    if (note) return note.clicked
+      ? { art: "busy", bubble: note.key, color: "accent", say: `Next time: ${note.key} for ${note.label}.${note.clicks > 1 ? ` Clicked ${note.clicks} times today.` : ""}`, tip: "The key for what you just clicked", bob: 900, wide: true, go: null }
+      : { art: "happy", bubble: note.key, color: "done", tip: "Done by key", bob: 600, go: null };
     const meet = this.meeting();
     if (meet && !blocked) {
       const mins = Math.round((meet.start - Date.now()) / 60000);
@@ -133,6 +142,7 @@ export default class ForestSprite extends View {
   }
 
   render() {
+    this.trainer.watch();
     const t = theme(), m = this.mood(), right = placement()?.edge === "right";
     const bubble = m.art === "sleep"
       ? div().h(16).text_size(11).text_color(t.dim).frames(["z", "zZ", "zZz", ""], 700)
@@ -141,7 +151,8 @@ export default class ForestSprite extends View {
         .when(m.art === "alert", (el) => el.loop("opacity", { from: 0.45, to: 1, period: 900 }));
     return v_flex().id("forest-sprite").p(4).gap(1).items_center().tooltip(m.tip)
       .when(Boolean(m.go), (el) => el.cursor_pointer())
-      .on_click((_e, cx) => { if (m.go) { m.go(); cx.notify(); } })
+      .on_mouse_down_out(() => { this.trainer.press(); })
+      .on_click((_e, cx) => { this.trainer.press(); if (m.go) { m.go(); cx.notify(); } })
       .when(Boolean(m.say), (el) => el.child(div().max_w(m.wide ? 236 : 180).px(6).py(2).rounded(6).bg(t.raised).text_size(11).text_color(t.foreground).map((el) => (m.wide ? el.whitespace_normal() : el.truncate())).child(m.say)))
       .child(h_flex().w(56).map((el) => (right ? el.justify_start() : el.justify_end())).child(bubble))
       .child(div().relative().flex_none().when(m.bob > 0, (el) => el.loop("top", { from: 0, to: -4, period: m.bob }))

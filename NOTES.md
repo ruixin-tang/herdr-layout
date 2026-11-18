@@ -22,12 +22,12 @@ Live Herdr files are under `~/.config/herdr-app/`:
 | Layout | `layouts/over9k.json` | Third-party over9k layout, edited. Left sidebar, terminal column with the mountain on top, right panel. |
 | Themes | `themes/sheikah*.json` | Zelda look in four variants; the forest sprite switches them by the hour (06:00 dawn, 10:00 day, 14:30 dusk, 17:15 night). |
 | `mods/my-work` | right panel, top | Tickets, PRs and Recap tabs. Sections by whose move it is. Trail line per row (PR, CI, comments to answer, branch, live state, agent). Pick-up starts an agent. |
-| `mods/support-duty` | right panel | Foldable; links for Sentry triage, dev support, release testing (starts an agent on the `release-testing` skill of the floryn-support-duties plugin, 0.9.0 since 18 November 2026) and its example, Sentry, checklist. "today" badge from the Dev-support calendar. |
+| `mods/support-duty` | right panel | Foldable; links for Sentry triage, dev support, release testing (starts an agent on the `release-testing` skill of the floryn-support-duties plugin, 0.9.0 since 18 November 2026) and its run sheet (the list of all releases), Sentry, checklist. "today" badge from the Dev-support calendar. |
 | `mods/weather` | right panel | Den Bosch and Eindhoven. Rain from Buienradar's radar (2 hours, 5-minute bars), temperature from Open-Meteo. Marks the current network as home; shares `my-work.place` and `weather.sky`. |
 | `mods/trains` | right panel | NS trains home from Den Bosch, disruptions on the route, one-day other destination, journeys for calendar appointments. Shows 15:00 to 18:30, not at home. Key in `~/.config/my-work/ns-key` (never print it, never copy it into this folder). |
 | `mods/agenda` | right panel, bottom | Today's meetings with room and Join link. |
 | `mods/crew` | above the terminals | The mountain: every agent is a skier (hiker from April to October). Real sky, sun, clouds and rain; a clock top left. An agent's running sub-agents are small figures in its colour right behind it (up to 4, then "+n"): Claude Code's from shared `over9k.subs`, Herdr's own from `terminals()` with a `parent`. |
-| `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; offers the brief after Morning start ran by itself; also runs the theme switch, the daily backup and the compact layout: a window narrower than 1800 px (the laptop screen) gets the strip at 160 px instead of 260, the right panel at 312 instead of 368 and the agenda at 150 instead of 230, shared as `compact` (the mountain draws itself smaller). `forest-sprite.compact` switches by hand. |
+| `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; offers the brief after Morning start ran by itself; also runs the theme switch, the daily backup and the compact layout: a window narrower than 1800 px (the laptop screen) gets the strip at 160 px instead of 260, the right panel at 312 instead of 368 and the agenda at 150 instead of 230, shared as `compact` (the mountain draws itself smaller). `forest-sprite.compact` switches by hand. Shortcut training (`shortcuts.js`): when I change space or tab, open a tab, split or zoom by clicking, it shows the key for it for 8 seconds and how often I clicked today; done by key, a short cheer with the key. It tells the two apart by a mouse press in the 1.5 seconds before; keys are read from `keys.json`; counts in shared `shortcuts.today`. |
 | `mods/korok` | floating in the sidebar | Cheers when a ticket is done or a PR is merged. |
 | `mods/dev-servers` | sidebar | One light per dev stack (Platform :3000, AIS :4000), start/stop, links to the staging and production remote shells. Also does Morning start: fast-forwards master in `~/floryn` and `~/ais` (only a checkout on master without changes to tracked files), then starts the stacks that are not running. Runs from the "Morning start" row, from `dev-servers.morning`, and by itself on a working day from 06:00 the first time an agent is working. Shares its steps as `morning`. |
 | `mods/morning` | dialog | The Morning start brief: the steps above, what changed since 17:00 on the last working day (my PRs merged, reviews asked of me by name, red CI on master or my open PRs), today's meetings and duty. Does no work itself. Sets `morning.seen`. |
@@ -65,10 +65,11 @@ Outside Herdr:
 
 ## What Ruixin asked for and is not built yet
 
-4. **Shortcut training.** Ruixin: "keyboard shortcuts is a good idea but it is something
-   that I never get used to, can you train me to do that?" Idea so far: define a few
-   shortcuts (next agent that needs me, open My work, start a stack) and have the sprite
-   show the shortcut whenever the same thing is done by clicking.
+1. **Shortcut training, second half.** The sprite now teaches the keys that exist (see
+   `mods/forest-sprite`). Not built: keys of my own for "next agent that needs me", "open
+   My work", "start the stacks", Morning start and the compact layout (`dev-servers.morning`,
+   `dev-servers.start-all` and `forest-sprite.compact` exist as commands without a key).
+   That needs an edit of `keys.json`, which Ruixin has not yet agreed to (see below).
 
 ## Built but never seen working
 
@@ -81,6 +82,8 @@ Outside Herdr:
 - The compact layout in a real laptop-sized window, and its switching by itself when the
   window moves between screens: on 18 November it was only switched by hand in the large
   window. The two release-testing rows in the support-duty block (it was folded).
+- Shortcut training after a real click (the "Next time: ..." bubble): on 18 November only
+  the cheer was seen, set off by a tab opened from a script, which it cannot tell from a key.
 - `dev-servers.morning` only reaches the sidebar block while the sidebar is shown.
 - The rain was reworked several times; Ruixin has not yet confirmed it looks right. Snow
   has never run.
