@@ -25,6 +25,8 @@ import { agents, terminals, theme, run, shared, layout, appHome, readTextFile, e
 // the sun crosses from sunrise to sunset, the moon at night, clouds when it is
 // overcast, a darker sky and falling rain or snow when the radar says so; the
 // mountain's colours go with the light. A clock sits in the sky, top left.
+// In the compact layout (shared "compact", set by the forest sprite on the laptop screen) the
+// strip is lower: the same mountain, drawn smaller (SMALLER), with everything on it.
 // The mountain is drawn here, as wide as the strip (the valley on the left, the
 // summit station at the right edge), and saved as one picture under data/;
 // the figures are <season>-<colour>-<pose>.svg (crew-gen.py and crew-resort.py made them).
@@ -32,6 +34,8 @@ const ART = "mods/crew", SCENES = "data/crew-scene";
 // Raise this when the mountain is drawn differently: a saved picture is reused by its name.
 const DRAWING = 4;
 const H = 260, SIZE = 56, STEP = 3000;
+// The compact strip's height against the full one's.
+const SMALLER = 160 / 260;
 // A follower's size, how far the first one is behind its parent, and how many are drawn.
 const SMALL = 28, BEHIND = 34, TRAIL = 20, FOLLOWERS = 4;
 const VALLEY = 232, SUMMIT = 84;
@@ -161,7 +165,8 @@ export default class Crew extends View {
     // One step of everybody's lap; the figures glide to their next spot by themselves.
     cx.timer.every(STEP, (cx) => { this.tick += 1; this.step(); if (this.tick % 3 === 0) this.measure(cx); cx.notify(); });
     // The clock shows seconds, so it is drawn again every second.
-    cx.timer.every(1000, (cx) => cx.notify());
+    // The same timer notices the layout going compact or back, so the mountain is drawn again at once.
+    cx.timer.every(1000, (cx) => { if (Boolean(shared("compact")) !== this.compact) this.measure(cx); cx.notify(); });
   }
 
   // Everybody one step on. A working agent walks to the station, rides up, comes
@@ -195,7 +200,10 @@ export default class Crew extends View {
         const find = (n, id) => n && (n.id === id ? n : (n.children ?? []).map((c) => find(c, id)).find(Boolean));
         const panel = find(layout(), "panel");
         const side = shared("sidebar.collapsed") ? 44 : shared("sidebar.width") ?? 268;
-        const width = Math.max(960, Math.round(win - side - 16 - (panel && !panel.hidden ? (panel.size?.px ?? 368) + 8 : 0)));
+        // Compact: the mountain is drawn as wide as it would be at full height, then shown smaller.
+        const compact = this.compact = Boolean(shared("compact")), k = compact ? SMALLER : 1;
+        const shown = Math.max(compact ? 560 : 960, Math.round(win - side - 16 - (panel && !panel.hidden ? (panel.size?.px ?? 368) + 8 : 0)));
+        const width = Math.round(shown / k);
         const sky = shared("weather.sky") ?? null, now = Date.now();
         // A new picture every ten minutes, and when rain starts or stops.
         const look = season(), key = `${look}-${width}-${DRAWING}-${Math.floor(now / 600000)}${(sky?.mm ?? 0) >= 0.1 ? "w" : "d"}`;
@@ -203,7 +211,7 @@ export default class Crew extends View {
           const cafe = (await readTextFile(`${appHome()}/${ART}/ski-cafe.svg`)).trim().replace(/^<svg[^>]*>|<\/svg>$/g, "");
           const m = mountain(width, look, cafe, sky, now);
           await exec("sh", ["-c", 'mkdir -p "$1" && rm -f "$1"/*.svg && printf %s "$3" > "$1/$2"', "sh", `${appHome()}/${SCENES}`, `${key}.svg`, m.svg]);
-          this.width = width; this.scene = { ...m, key, look, sky, dark: light(sky, now).night > 0.5 };
+          this.width = shown; this.scene = { ...m, key, k, look, sky, dark: light(sky, now).night > 0.5 };
           if (!this.started) this.step();
         }
       } catch { /* keeps the last mountain */ }
@@ -215,7 +223,10 @@ export default class Crew extends View {
   // from wherever it was: its drawing, a "!" above when it wants me, its name below.
   // `back`: where "behind" is, as [direction along x, the slope there]; followers hang or stand along it.
   figure(a, pose, x, y, t, { size = SIZE, wants = false, dim = false, bounce = 0, drop = 0, back = [-1, 0] } = {}) {
-    const name = a.title.replace(/^[^A-Za-z0-9]+/, "") || a.tab_name || a.program?.name || "agent";
+    const name = a.title.replace(/^[^A-Za-z0-9]+/, "") || a.tab_name || a.program?.name || "agent", k = this.scene.k;
+    // The spot and the drawings follow the mountain's size; the "!" and the name stay readable.
+    x *= k; y *= k; size = Math.round(size * k);
+    const little = Math.round(SMALL * k);
     const says = a.status === "done" ? "finished, have a look" : a.status === "blocked" ? "needs your answer" : a.status;
     const body = v_flex().w(84).items_center()
       .child(h_flex().h(14).justify_center().when(wants, (el) => el.child(div().h(14).min_w(14).px(3).flex().items_center().justify_center().rounded(7)
@@ -231,13 +242,13 @@ export default class Crew extends View {
     const kids = this.followers(a), suit = SUITS[hash(a.address) % SUITS.length], chair = pose === "working";
     const small = chair ? "working" : pose === "rest" || pose === "stuck" ? pose : this.scene.look === "ski" ? "carve" : "down";
     const trail = kids.slice(0, FOLLOWERS).map((k, i) => {
-      const dx = back[0] * (BEHIND + i * TRAIL), dy = Math.round(back[1] * dx);
-      return div().id(`crew-sub-${a.address}-${i}`).absolute().left(42 + dx - SMALL / 2).top(14 + dy + (chair ? 0 : size - SMALL - 2))
-        .w(SMALL).h(SMALL).cursor_pointer().tooltip(`${k} · sub-agent of ${name}`)
+      const dx = back[0] * (BEHIND + i * TRAIL) * k, dy = Math.round(back[1] * dx);
+      return div().id(`crew-sub-${a.address}-${i}`).absolute().left(42 + dx - little / 2).top(14 + dy + (chair ? 0 : size - little - 2))
+        .w(little).h(little).cursor_pointer().tooltip(`${k} · sub-agent of ${name}`)
         .on_click(() => { run("agent.focus", { terminal: a.address }); })
-        .child(image(`${ART}/${this.scene.look}-${suit}-${small}.svg`).w(SMALL).h(SMALL).opacity(dim ? 0.5 : 0.9));
+        .child(image(`${ART}/${this.scene.look}-${suit}-${small}.svg`).w(little).h(little).opacity(dim ? 0.5 : 0.9));
     });
-    const more = kids.length > FOLLOWERS ? [div().absolute().left(42 + back[0] * (BEHIND + FOLLOWERS * TRAIL) - 10).top(14 + Math.round(back[1] * back[0] * (BEHIND + FOLLOWERS * TRAIL)) + (chair ? 8 : size - 16))
+    const more = kids.length > FOLLOWERS ? [div().absolute().left(42 + back[0] * (BEHIND + FOLLOWERS * TRAIL) * k - 10).top(14 + Math.round(back[1] * back[0] * (BEHIND + FOLLOWERS * TRAIL) * k) + (chair ? 8 : size - 16))
       .w(20).text_size(10).text_color(t.muted).child(`+${kids.length - FOLLOWERS}`)] : [];
     return div().id(`crew-${a.address}-${chair ? "chair" : "foot"}`).absolute().left(x - 42).top(y - 14)
       .transition("left", { duration: STEP, easing: "linear" }).transition("top", { duration: STEP, easing: "linear" })
@@ -252,7 +263,7 @@ export default class Crew extends View {
   }
 
   render() {
-    const t = theme(), s = this.scene;
+    const t = theme(), s = this.scene, k = s?.k ?? 1;
     // The slope of a line at one of its points, for the followers behind a figure there.
     const slope = (line, i) => { const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)]; return (b[1] - a[1]) / (b[0] - a[0] || 1); };
     const frame = div().id("crew").size_full().relative().overflow_hidden().rounded(6).bg(t.chrome).border_1().border_color(t.border);
@@ -302,7 +313,7 @@ export default class Crew extends View {
       seed = Math.imul(seed ^ (seed >>> 15), 2246822519); seed = (seed ^ (seed >>> 13)) >>> 0;
       const x = seed % (this.width + 60), wait = (seed >>> 8) % STEP, near = (seed >>> 20) % 3;
       const drift = snow ? ((seed % 3) - 1) * 18 : -40;
-      return div().id(`fall-${i}-${life}`).absolute().left(going ? x + drift : x).top(going ? H + 20 : snow ? seed % 40 : 0)
+      return div().id(`fall-${i}-${life}`).absolute().left(going ? x + drift : x).top(going ? H * k + 20 : snow ? seed % 40 : 0)
         .opacity(going ? (snow ? 0.85 : 0.26 + near * 0.11) : 0.02)
         .transition("top", { duration: fall, delay: wait, easing: "linear" }).transition("left", { duration: fall, delay: wait, easing: "linear" })
         .transition("opacity", { duration: 60, delay: wait })
@@ -311,15 +322,15 @@ export default class Crew extends View {
     const now = new Date();
 
     return frame
-      .child(image(`${SCENES}/${s.key}.svg`).absolute().left(0).top(0).w(this.width).h(H))
+      .child(image(`${SCENES}/${s.key}.svg`).absolute().left(0).top(0).w(this.width).h(Math.round(H * k)))
       .children(falling)
       // The clock: the time large, the day under it.
-      .child(v_flex().absolute().left(16).top(8).text_color("#f4f7f8")
+      .child(v_flex().absolute().left(16).top(k < 1 ? 4 : 8).text_color("#f4f7f8")
         .child(h_flex().items_end().gap(3)
-          .child(div().text_size(28).font_semibold().child(now.toTimeString().slice(0, 5)))
-          .child(div().w(24).pb(4).text_size(15).opacity(0.75).child(now.toTimeString().slice(6, 8))))
+          .child(div().text_size(k < 1 ? 20 : 28).font_semibold().child(now.toTimeString().slice(0, 5)))
+          .child(div().w(24).pb(k < 1 ? 2 : 4).text_size(k < 1 ? 12 : 15).opacity(0.75).child(now.toTimeString().slice(6, 8))))
         .child(div().text_size(11).opacity(0.8).child(`${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]}`)))
       .children(figures)
-      .when(!list.length, (el) => el.child(div().absolute().left(560).top(VALLEY - 16).text_size(11).text_color(t.dim).child("Nobody on the mountain: start an agent and it takes the lift.")));
+      .when(!list.length, (el) => el.child(div().absolute().left(560 * k).top((VALLEY - 16) * k).text_size(11).text_color(t.dim).child("Nobody on the mountain: start an agent and it takes the lift.")));
   }
 }

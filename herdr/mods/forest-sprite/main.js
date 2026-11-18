@@ -1,6 +1,6 @@
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, theme, run, shared, placement, readTextFile, exec, home, appHome, checking } from "herdr";
+import { agents, theme, run, shared, setShared, placement, readTextFile, exec, home, appHome, checking, nextCommand } from "herdr";
 
 // A small forest sprite that floats over the window and follows the work:
 //   an agent is blocked      -> startled, an orange "!"; a click goes to that agent
@@ -21,6 +21,11 @@ const SOON = 10 * 60000, LATE = 5 * 60000;
 // as the sign to wrap up. The themes are the Sheikah one turned to that hour's hue.
 const SKY = [["06:00", "sheikah-dawn", "#3b2c44", "#0a1118"], ["10:00", "sheikah", "#0e2e38", "#050d10"], ["14:30", "sheikah-dusk", "#4a2a1c", "#0c0a12"], ["17:15", "sheikah-night", "#0b1636", "#02040a"]];
 const LAYOUT = "over9k";
+// The compact layout, for the laptop screen: a window narrower than LAPTOP gets a lower
+// mountain strip, a narrower right panel and a shorter agenda, [block, full px, compact px].
+// "forest-sprite.compact" (a key) switches by hand; that choice holds until it is the
+// window's own again.
+const LAPTOP = 1800, COMPACT = [["crew", 260, 160], ["panel", 368, 312], ["agenda", 230, 150]];
 
 export default class ForestSprite extends View {
   init(_props, cx) {
@@ -29,6 +34,14 @@ export default class ForestSprite extends View {
     if (!checking()) { this.sky(); cx.timer.every(300000, () => this.sky()); }
     // Once a day, the first time Herdr is open: copy my workspace into ~/workspace-backup and commit it there.
     if (!checking()) { this.backup(); cx.timer.every(3600000, () => this.backup()); }
+    if (!checking()) {
+      this.fit(cx); cx.timer.every(5000, (cx) => this.fit(cx));
+      cx.spawn(async (cx) => {
+        for (;;) {
+          if ((await nextCommand()) === "compact") { localStorage.setItem("compact", shared("compact") ? "off" : "on"); this.fit(cx); }
+        }
+      });
+    }
     // The count already seen: only a rise wakes the sprite, not the standing pile.
     this.seen = Number(localStorage.getItem("seen") ?? -1);
   }
@@ -38,6 +51,24 @@ export default class ForestSprite extends View {
     if (localStorage.getItem("backup") === day) return;
     localStorage.setItem("backup", day);
     exec("sh", [`${home()}/workspace-backup/backup.sh`]).catch(() => null);
+  }
+
+  // Compact or full, by the window's width (or my own choice): the blocks are sized when that
+  // changes, and it is shared as "compact" for the mountain, which draws itself smaller.
+  fit(cx) {
+    cx.spawn(async (cx) => {
+      try {
+        if (shared("layout") !== LAYOUT) return;
+        const narrow = JSON.parse(await readTextFile(`${appHome()}/window.json`)).bounds[2] < LAPTOP;
+        const own = localStorage.getItem("compact");
+        if (own === (narrow ? "on" : "off")) localStorage.removeItem("compact");
+        const compact = own ? own === "on" : narrow;
+        if (compact === shared("compact")) return;
+        setShared("compact", compact);
+        for (const [id, full, small] of COMPACT) run("layout.resize", { id, px: compact ? small : full });
+        cx.notify();
+      } catch { /* next time */ }
+    });
   }
 
   // Dawn, day, dusk, night: writes the theme and the gradient into the layout file when the phase

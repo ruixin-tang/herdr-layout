@@ -22,12 +22,12 @@ Live Herdr files are under `~/.config/herdr-app/`:
 | Layout | `layouts/over9k.json` | Third-party over9k layout, edited. Left sidebar, terminal column with the mountain on top, right panel. |
 | Themes | `themes/sheikah*.json` | Zelda look in four variants; the forest sprite switches them by the hour (06:00 dawn, 10:00 day, 14:30 dusk, 17:15 night). |
 | `mods/my-work` | right panel, top | Tickets, PRs and Recap tabs. Sections by whose move it is. Trail line per row (PR, CI, comments to answer, branch, live state, agent). Pick-up starts an agent. |
-| `mods/support-duty` | right panel | Foldable; links for Sentry triage, dev support, Sentry, checklist. "today" badge from the Dev-support calendar. |
+| `mods/support-duty` | right panel | Foldable; links for Sentry triage, dev support, release testing (starts an agent on the `release-testing` skill, which was still in review and not installed on 18 November 2026) and its example, Sentry, checklist. "today" badge from the Dev-support calendar. |
 | `mods/weather` | right panel | Den Bosch and Eindhoven. Rain from Buienradar's radar (2 hours, 5-minute bars), temperature from Open-Meteo. Marks the current network as home; shares `my-work.place` and `weather.sky`. |
 | `mods/trains` | right panel | NS trains home from Den Bosch, disruptions on the route, one-day other destination, journeys for calendar appointments. Shows 15:00 to 18:30, not at home. Key in `~/.config/my-work/ns-key` (never print it, never copy it into this folder). |
 | `mods/agenda` | right panel, bottom | Today's meetings with room and Join link. |
 | `mods/crew` | above the terminals | The mountain: every agent is a skier (hiker from April to October). Real sky, sun, clouds and rain; a clock top left. An agent's running sub-agents are small figures in its colour right behind it (up to 4, then "+n"): Claude Code's from shared `over9k.subs`, Herdr's own from `terminals()` with a `parent`. |
-| `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; offers the brief after Morning start ran by itself; also runs the theme switch and the daily backup. |
+| `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; offers the brief after Morning start ran by itself; also runs the theme switch, the daily backup and the compact layout: a window narrower than 1800 px (the laptop screen) gets the strip at 160 px instead of 260, the right panel at 312 instead of 368 and the agenda at 150 instead of 230, shared as `compact` (the mountain draws itself smaller). `forest-sprite.compact` switches by hand. |
 | `mods/korok` | floating in the sidebar | Cheers when a ticket is done or a PR is merged. |
 | `mods/dev-servers` | sidebar | One light per dev stack (Platform :3000, AIS :4000), start/stop, links to the staging and production remote shells. Also does Morning start: fast-forwards master in `~/floryn` and `~/ais` (only a checkout on master without changes to tracked files), then starts the stacks that are not running. Runs from the "Morning start" row, from `dev-servers.morning`, and by itself on a working day from 06:00 the first time an agent is working. Shares its steps as `morning`. |
 | `mods/morning` | dialog | The Morning start brief: the steps above, what changed since 17:00 on the last working day (my PRs merged, reviews asked of me by name, red CI on master or my open PRs), today's meetings and duty. Does no work itself. Sets `morning.seen`. |
@@ -65,8 +65,6 @@ Outside Herdr:
 
 ## What Ruixin asked for and is not built yet
 
-3. **A compact layout for the laptop screen**, where the strip and right panel take
-   proportionally more room.
 4. **Shortcut training.** Ruixin: "keyboard shortcuts is a good idea but it is something
    that I never get used to, can you train me to do that?" Idea so far: define a few
    shortcuts (next agent that needs me, open My work, start a stack) and have the sprite
@@ -80,6 +78,9 @@ Outside Herdr:
 - Followers on the mountain behind a blocked, done or idle parent, more than four of them,
   and Herdr's own sub-agents (`hc run`); seen on 18 November: two Claude Code subagents
   behind a working parent, on the lift and on the way down.
+- The compact layout in a real laptop-sized window, and its switching by itself when the
+  window moves between screens: on 18 November it was only switched by hand in the large
+  window. The two release-testing rows in the support-duty block (it was folded).
 - `dev-servers.morning` only reaches the sidebar block while the sidebar is shown.
 - The rain was reworked several times; Ruixin has not yet confirmed it looks right. Snow
   has never run.

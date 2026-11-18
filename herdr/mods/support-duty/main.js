@@ -12,6 +12,8 @@ const MEETINGS = `${home()}/.cache/my-work/meetings.json`;
 const REPO = "floryn";
 const SENTRY = "https://floryn.sentry.io/issues/?query=is%3Aunresolved&project=133656&project=5217905&project=6547650";
 const CHECKLIST = "https://app.notion.com/p/1758fda35abb80b3b6eec28a38c92444";
+// How /release-testing was used on a real deploy duty (18 November 2026).
+const RELEASE_EXAMPLE = "https://claude.ai/artifact/KcNKtGCBkwU8tG194shCXr?sk=ZwiU7Su56x8auzbW9A1-ig#24272";
 // A Claude Code tab in the platform on one of the support-duty skills.
 const start = (name, task) => {
   const space = spaces().find((s) => s.name === REPO) ?? spaces().find((s) => s.active);
@@ -20,6 +22,8 @@ const start = (name, task) => {
 const ITEMS = [
   ["Triage Sentry", "Starts an agent on the sweep", () => start("Sentry triage", "I am on support duty. Use the sentry-triaging skill to sweep the unresolved Sentry issues.")],
   ["Dev support request", "Starts an agent, then paste the request", () => start("Dev support", "I am on support duty. Use the dev-support-triaging skill. First ask me to paste the #dev-support request, then wait.")],
+  ["Release testing", "Starts an agent on the deploy's test instructions", () => start("Release testing", "I am on deploy duty. Use the release-testing skill to take me through the deploy and its test instructions. If that skill is not installed here, say so and stop.")],
+  ["Release testing example", "Opens the browser", () => { exec("open", [RELEASE_EXAMPLE]); }],
   ["Unresolved in Sentry", "Opens the browser", () => { exec("open", [SENTRY]); }],
   ["Checklist", "Opens Notion", () => { exec("open", [CHECKLIST]); }],
 ];
