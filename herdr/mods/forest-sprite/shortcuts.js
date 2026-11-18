@@ -1,9 +1,11 @@
-import { focused, spaces, keys, setShared } from "herdr";
+import { focused, spaces, agents, keys, layout, shared, setShared } from "herdr";
 
 // Shortcut training. The sprite watches what I do in the window (another space or tab,
 // a new tab, a split, a zoom) and whether a mouse press came just before it:
 //   done by clicking -> it shows the key that does the same, and how often I clicked today
 //   done by key      -> a short cheer with that key
+// Three things have keys of my own (keys.json): going to the agent that needs me, My work,
+// and starting the dev stacks; clicking my way to those is answered with those keys.
 // The keys are read from keys.json as it is now, so a rebound key is taught as rebound.
 // Today's counts are shared as "shortcuts.today" ({ day, by: { <action>: { click, key } } }).
 // It cannot see who did it: a tab an agent or a script opened counts as done by key.
@@ -22,12 +24,23 @@ function look() {
   const f = focused();
   if (!f) return null;
   const all = spaces(), space = all.find((s) => s.id === f.space), tab = space?.tabs.find((t) => t.id === f.tab);
-  return { space: f.space, spaceIndex: space?.index, spaces: all.length, tab: f.tab, tabIndex: tab?.index, tabs: space?.tabs.length ?? 0, pane: f.pane, panes: tab?.panes ?? 0, zoomed: Boolean(tab?.zoomed) };
+  const find = (n, id) => n && (n.id === id ? n : (n.children ?? []).map((c) => find(c, id)).find(Boolean));
+  const panel = find(layout(), "panel");
+  return {
+    // The panes of the agents that want me, My work showing, and how many stacks run in Herdr.
+    wanting: agents().filter((a) => a.status === "blocked" || a.status === "done").map((a) => a.pane),
+    work: Boolean(panel && !panel.hidden && find(panel, "panel-body")?.active === "my-work"),
+    stacks: Object.values(shared("dev-servers.state") ?? {}).filter((s) => s.terminal).length,
+    space: f.space, spaceIndex: space?.index, spaces: all.length, tab: f.tab, tabIndex: tab?.index, tabs: space?.tabs.length ?? 0, pane: f.pane, panes: tab?.panes ?? 0, zoomed: Boolean(tab?.zoomed),
+  };
 }
 
 // What happened between two looks: [the commands that do it, what to call it, cheer when done by key].
 // Things that also happen by themselves (a pane closing when its program ends) are never cheered.
 function what(a, b) {
+  if (b.pane !== a.pane && a.wanting.includes(b.pane)) return [["forest-sprite.needs-me"], "the agent that needs you", true];
+  if (b.work !== a.work) return [["forest-sprite.my-work"], b.work ? "My work" : "putting My work away", true];
+  if (b.stacks > a.stacks) return [["dev-servers.start-all"], "starting the stacks", false];
   if (b.spaces > a.spaces) return [["space.new"], "a new space", true];
   if (b.space !== a.space) return b.spaces < a.spaces ? null : [b.spaceIndex <= 9 ? [`space.select:${b.spaceIndex}`] : ["space.prev", "space.next"], "this space", true];
   if (b.tabs > a.tabs) return [["tab.new"], "a new tab", true];
@@ -70,6 +83,9 @@ export class Trainer {
     const key = arrows ? `${shown[0].slice(0, -1)} + arrow` : shown.join(" or ");
     this.note = { clicked, key, label, clicks: count.click, until: Date.now() + (clicked ? HINT : CHEER) };
   }
+
+  // Something to say for a moment that is not about a key.
+  tell(text) { this.note = { text, until: Date.now() + CHEER }; }
 
   // The note to show now, if any.
   current() { return this.note && Date.now() < this.note.until ? this.note : null; }

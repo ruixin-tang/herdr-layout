@@ -27,7 +27,7 @@ Live Herdr files are under `~/.config/herdr-app/`:
 | `mods/trains` | right panel | NS trains home from Den Bosch, disruptions on the route, one-day other destination, journeys for calendar appointments. Shows 15:00 to 18:30, not at home. Key in `~/.config/my-work/ns-key` (never print it, never copy it into this folder). |
 | `mods/agenda` | right panel, bottom | Today's meetings with room and Join link. |
 | `mods/crew` | above the terminals | The mountain: every agent is a skier (hiker from April to October). Real sky, sun, clouds and rain; a clock top left. An agent's running sub-agents are small figures in its colour right behind it (up to 4, then "+n"): Claude Code's from shared `over9k.subs`, Herdr's own from `terminals()` with a `parent`. |
-| `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; offers the brief after Morning start ran by itself; also runs the theme switch, the daily backup and the compact layout: a window narrower than 1800 px (the laptop screen) gets the strip at 160 px instead of 260, the right panel at 312 instead of 368 and the agenda at 150 instead of 230, shared as `compact` (the mountain draws itself smaller). `forest-sprite.compact` switches by hand. Shortcut training (`shortcuts.js`): when I change space or tab, open a tab, split or zoom by clicking, it shows the key for it for 8 seconds and how often I clicked today; done by key, a short cheer with the key. It tells the two apart by a mouse press in the 1.5 seconds before; keys are read from `keys.json`; counts in shared `shortcuts.today`. |
+| `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; offers the brief after Morning start ran by itself; also runs the theme switch, the daily backup and the compact layout: a window narrower than 1800 px (the laptop screen) gets the strip at 160 px instead of 260, the right panel at 312 instead of 368 and the agenda at 150 instead of 230, shared as `compact` (the mountain draws itself smaller). `forest-sprite.compact` switches by hand. Shortcut training (`shortcuts.js`): when I change space or tab, open a tab, split or zoom by clicking, it shows the key for it for 8 seconds and how often I clicked today; done by key, a short cheer with the key. It tells the two apart by a mouse press in the 1.5 seconds before; keys are read from `keys.json`; counts in shared `shortcuts.today`. Going to an agent that needs me, opening My work and starting a stack by clicking are answered with my own keys. |
 | `mods/korok` | floating in the sidebar | Cheers when a ticket is done or a PR is merged. |
 | `mods/dev-servers` | sidebar | One light per dev stack (Platform :3000, AIS :4000), start/stop, links to the staging and production remote shells. Also does Morning start: fast-forwards master in `~/floryn` and `~/ais` (only a checkout on master without changes to tracked files), then starts the stacks that are not running. Runs from the "Morning start" row, from `dev-servers.morning`, and by itself on a working day from 06:00 the first time an agent is working. Shares its steps as `morning`. |
 | `mods/morning` | dialog | The Morning start brief: the steps above, what changed since 17:00 on the last working day (my PRs merged, reviews asked of me by name, red CI on master or my open PRs), today's meetings and duty. Does no work itself. Sets `morning.seen`. |
@@ -58,18 +58,19 @@ Outside Herdr:
 - A picture written under a name Herdr has already shown is not re-read: use a new name.
 - Mods cannot read a Wi-Fi name (macOS hides it); the weather mod recognises a network
   by its router address.
-- Don't edit `keys.json` without saying what it costs: Herdr then stops delivering its
-  own new default shortcuts.
+- `keys.json` is edited since 18 November 2026 (Ruixin agreed), so Herdr no longer adds its
+  own new default shortcuts on upgrades: add those by hand. My keys: `cmd-j` the agent that
+  needs me (`forest-sprite.needs-me`), `cmd-shift-m` My work (`forest-sprite.my-work`),
+  `cmd-shift-s` start the stacks (`dev-servers.start-all`), `cmd-shift-b` Morning start and
+  its brief (`dev-servers.brief`), `cmd-shift-k` compact layout (`forest-sprite.compact`).
+  They reach their mod only while the sidebar is shown.
 - over9k's "keep up to date" is on and may overwrite edits inside `mods/over9k*`;
   `sh backup.sh restore` brings them back.
 
 ## What Ruixin asked for and is not built yet
 
-1. **Shortcut training, second half.** The sprite now teaches the keys that exist (see
-   `mods/forest-sprite`). Not built: keys of my own for "next agent that needs me", "open
-   My work", "start the stacks", Morning start and the compact layout (`dev-servers.morning`,
-   `dev-servers.start-all` and `forest-sprite.compact` exist as commands without a key).
-   That needs an edit of `keys.json`, which Ruixin has not yet agreed to (see below).
+Nothing: the four items of 18 November 2026 are built. What is left is seeing them work
+(next section).
 
 ## Built but never seen working
 
@@ -82,6 +83,8 @@ Outside Herdr:
 - The compact layout in a real laptop-sized window, and its switching by itself when the
   window moves between screens: on 18 November it was only switched by hand in the large
   window. The two release-testing rows in the support-duty block (it was folded).
+- The five keys of my own pressed on the keyboard (their commands were run from a shell:
+  My work and Morning start seen, `needs-me` and `start-all` with something to do not).
 - Shortcut training after a real click (the "Next time: ..." bubble): on 18 November only
   the cheer was seen, set off by a tab opened from a script, which it cannot tell from a key.
 - `dev-servers.morning` only reaches the sidebar block while the sidebar is shown.

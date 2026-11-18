@@ -2,7 +2,7 @@
 # Copies my Herdr workspace into this folder and commits what changed.
 #   sh backup.sh           copy and commit
 #   sh backup.sh restore   copy everything back (after a broken edit, or on a new Mac)
-# What is mine: my own Herdr mods, the edited over9k mods, the layout, the themes,
+# What is mine: my own Herdr mods, the edited over9k mods, the layout, the themes, my keys,
 # and the Claude Code mod that syncs tickets and calendar. Keys never come along
 # (the NS key lives in ~/.config/my-work and is not copied).
 set -eu
@@ -15,6 +15,7 @@ if [ "${1:-}" = restore ]; then
   for d in "$here"/herdr/mods/over9k*; do rsync -a "$d/" "$herdr/mods/$(basename "$d")/"; done
   rsync -a "$here/herdr/layouts/" "$herdr/layouts/"
   rsync -a "$here/herdr/themes/" "$herdr/themes/"
+  [ -f "$here/herdr/keys.json" ] && cp "$here/herdr/keys.json" "$herdr/keys.json"
   mkdir -p "$HOME/.claude/mods" && rsync -a --delete "$here/claude/my-tickets/" "$HOME/.claude/mods/my-tickets/"
   echo "restored into $herdr and ~/.claude/mods/my-tickets"
   exit 0
@@ -29,6 +30,7 @@ for d in "$herdr"/mods/over9k*; do
 done
 cp "$herdr/layouts/over9k.json" "$herdr/layouts/over9k.svg" "$here/herdr/layouts/" 2>/dev/null || true
 cp "$herdr"/themes/sheikah*.json "$here/herdr/themes/"
+cp "$herdr/keys.json" "$here/herdr/keys.json"
 rsync -a --delete --exclude '.claude-plugin/types' "$HOME/.claude/mods/my-tickets/" "$here/claude/my-tickets/"
 
 cd "$here"

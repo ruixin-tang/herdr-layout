@@ -48,12 +48,14 @@ export default class DevServers extends View {
     this.probe(cx);
     cx.timer.every(10000, (cx) => { this.probe(cx); this.auto(cx); });
     // "dev-servers.start-all" (a key): starts every stack that is not running.
-    // "dev-servers.morning" (the dialog's "Run again", or a key): Morning start.
+    // "dev-servers.morning" (the dialog's "Run again"): Morning start.
+    // "dev-servers.brief" (a key): what the "Morning start" row does.
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
         if (c === "start-all") cx.spawn(async (cx) => { await this.startAll(); cx.notify(); });
         if (c === "morning") this.morning(cx);
+        if (c === "brief") this.brief(cx);
         cx.notify();
       }
     });
@@ -108,6 +110,13 @@ export default class DevServers extends View {
       this.busy = false;
       cx.notify();
     });
+  }
+
+  // The "Morning start" row, and its key: starts the day when that is still to do, and shows
+  // the brief. Once done today, it only shows the brief again.
+  brief(cx) {
+    if (shared("morning")?.day !== new Date().toDateString()) this.morning(cx);
+    run("mod.open", { name: "morning" });
   }
 
   // By itself: on a working day from 06:00, the first time one of my agents is working.
@@ -175,8 +184,7 @@ export default class DevServers extends View {
     const t = theme(), morning = shared("morning"), done = morning?.day === new Date().toDateString();
     return v_flex().id("dev-servers").size_full().pt(4).border_t(1).border_color(t.border).bg(t.chrome).text_size(12.5)
       .child(h_flex().h(24).flex_none().px(6).gap(6).items_center()
-        // Once done today, the click only shows the brief again.
-        .child(this.link("morning", "Morning start", done ? t.muted : t.accent, t, (_e, cx) => { if (!done) this.morning(cx); run("mod.open", { name: "morning" }); }))
+        .child(this.link("morning", "Morning start", done ? t.muted : t.accent, t, (_e, cx) => this.brief(cx)))
         .child(div().flex_1())
         .when(done, (el) => el.child(div().pr(4).text_size(10.5).text_color(t.dim).child(`done ${new Date(morning.at).toTimeString().slice(0, 5)}`))))
       .children(STACKS.map((s) => this.row(s, t)));

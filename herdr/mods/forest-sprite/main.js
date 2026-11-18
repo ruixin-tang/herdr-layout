@@ -1,6 +1,6 @@
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, theme, run, shared, setShared, placement, readTextFile, exec, home, appHome, checking, nextCommand } from "herdr";
+import { agents, theme, run, shared, setShared, layout, placement, readTextFile, exec, home, appHome, checking, nextCommand } from "herdr";
 import { Trainer } from "./shortcuts.js";
 
 // A small forest sprite that floats over the window and follows the work:
@@ -40,7 +40,11 @@ export default class ForestSprite extends View {
       this.fit(cx); cx.timer.every(5000, (cx) => this.fit(cx));
       cx.spawn(async (cx) => {
         for (;;) {
-          if ((await nextCommand()) === "compact") { localStorage.setItem("compact", shared("compact") ? "off" : "on"); this.fit(cx); }
+          const c = await nextCommand();
+          if (c === "compact") { localStorage.setItem("compact", shared("compact") ? "off" : "on"); this.fit(cx); }
+          if (c === "needs-me") this.needsMe();
+          if (c === "my-work") this.myWork();
+          cx.notify();
         }
       });
     }
@@ -55,6 +59,20 @@ export default class ForestSprite extends View {
     if (localStorage.getItem("backup") === day) return;
     localStorage.setItem("backup", day);
     exec("sh", [`${home()}/workspace-backup/backup.sh`]).catch(() => null);
+  }
+
+  // "forest-sprite.needs-me" (a key): to the agent that waits for my answer, else to one that finished.
+  needsMe() {
+    const list = agents(), a = list.find((x) => x.status === "blocked") ?? list.find((x) => x.status === "done");
+    if (a) run("pane.focus", { pane: a.pane }); else this.trainer.tell("Nobody needs you right now.");
+  }
+
+  // "forest-sprite.my-work" (a key): My work in the right panel; again puts the panel away.
+  myWork() {
+    const find = (n, id) => n && (n.id === id ? n : (n.children ?? []).map((c) => find(c, id)).find(Boolean));
+    const panel = find(layout(), "panel");
+    if (panel && !panel.hidden && find(panel, "panel-body")?.active === "my-work") return run("layout.hide", { id: "panel" });
+    run("layout.select", { stack: "panel-body", child: "my-work" }); run("layout.show", { id: "panel" });
   }
 
   // Compact or full, by the window's width (or my own choice): the blocks are sized when that
@@ -109,6 +127,7 @@ export default class ForestSprite extends View {
     const blocked = list.find((a) => a.status === "blocked");
     // Shortcut training comes first: it is about what I did a second ago, and it is gone in a few.
     const note = this.trainer.current();
+    if (note?.text) return { art: "happy", bubble: "✓", color: "done", say: note.text, tip: note.text, bob: 900, go: null };
     if (note) return note.clicked
       ? { art: "busy", bubble: note.key, color: "accent", say: `Next time: ${note.key} for ${note.label}.${note.clicks > 1 ? ` Clicked ${note.clicks} times today.` : ""}`, tip: "The key for what you just clicked", bob: 900, wide: true, go: null }
       : { art: "happy", bubble: note.key, color: "done", tip: "Done by key", bob: 600, go: null };
