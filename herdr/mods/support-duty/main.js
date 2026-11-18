@@ -22,7 +22,7 @@ const start = (name, task) => {
 const ITEMS = [
   ["Triage Sentry", "Starts an agent on the sweep", () => start("Sentry triage", "I am on support duty. Use the sentry-triaging skill to sweep the unresolved Sentry issues.")],
   ["Dev support request", "Starts an agent, then paste the request", () => start("Dev support", "I am on support duty. Use the dev-support-triaging skill. First ask me to paste the #dev-support request, then wait.")],
-  ["Release testing", "Starts an agent on the deploy's test instructions", () => start("Release testing", "I am on deploy duty. Use the release-testing skill to take me through the deploy and its test instructions. If that skill is not installed here, say so and stop.")],
+  ["Release testing", "Starts an agent, then give it the release issue", () => start("Release testing", "I am on support duty. Use the release-testing skill. First ask me for the release issue, then wait.")],
   ["Release testing example", "Opens the browser", () => { exec("open", [RELEASE_EXAMPLE]); }],
   ["Unresolved in Sentry", "Opens the browser", () => { exec("open", [SENTRY]); }],
   ["Checklist", "Opens Notion", () => { exec("open", [CHECKLIST]); }],

@@ -22,7 +22,7 @@ Live Herdr files are under `~/.config/herdr-app/`:
 | Layout | `layouts/over9k.json` | Third-party over9k layout, edited. Left sidebar, terminal column with the mountain on top, right panel. |
 | Themes | `themes/sheikah*.json` | Zelda look in four variants; the forest sprite switches them by the hour (06:00 dawn, 10:00 day, 14:30 dusk, 17:15 night). |
 | `mods/my-work` | right panel, top | Tickets, PRs and Recap tabs. Sections by whose move it is. Trail line per row (PR, CI, comments to answer, branch, live state, agent). Pick-up starts an agent. |
-| `mods/support-duty` | right panel | Foldable; links for Sentry triage, dev support, release testing (starts an agent on the `release-testing` skill, which was still in review and not installed on 18 November 2026) and its example, Sentry, checklist. "today" badge from the Dev-support calendar. |
+| `mods/support-duty` | right panel | Foldable; links for Sentry triage, dev support, release testing (starts an agent on the `release-testing` skill of the floryn-support-duties plugin, 0.9.0 since 18 November 2026) and its example, Sentry, checklist. "today" badge from the Dev-support calendar. |
 | `mods/weather` | right panel | Den Bosch and Eindhoven. Rain from Buienradar's radar (2 hours, 5-minute bars), temperature from Open-Meteo. Marks the current network as home; shares `my-work.place` and `weather.sky`. |
 | `mods/trains` | right panel | NS trains home from Den Bosch, disruptions on the route, one-day other destination, journeys for calendar appointments. Shows 15:00 to 18:30, not at home. Key in `~/.config/my-work/ns-key` (never print it, never copy it into this folder). |
 | `mods/agenda` | right panel, bottom | Today's meetings with room and Join link. |
