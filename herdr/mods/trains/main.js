@@ -93,8 +93,9 @@ export default class Trains extends View {
     const shown = Boolean(this.trip) || (now >= SHOW_FROM && (now < SHOW_UNTIL || Boolean(this.elsewhere())) && shared("my-work.place") !== "home");
     run(shown ? "layout.show" : "layout.hide", { id: BLOCK });
     const picking = this.picking ? 30 + (this.matches ? Math.max(1, this.matches.length) * 22 : 0) : 0;
-    // Compact (the laptop screen): one line, the next train I can still catch.
-    if (shown && shared("compact")) run("layout.resize", { id: BLOCK, px: 34 });
+    // Compact (the laptop screen): one line, the next train I can still catch; a click
+    // shows the whole block, "less" makes it small again.
+    if (shown && this.compact) run("layout.resize", { id: BLOCK, px: 34 });
     else if (shown) run("layout.resize", { id: BLOCK, px: 26 + picking + this.troubles.length * 22 + Math.max(1, (this.trains ?? []).length) * 22 + 12 });
     return shown;
   }
@@ -189,11 +190,11 @@ export default class Trains extends View {
   render() {
     const t = theme(), trip = this.trip, other = trip ? null : this.elsewhere();
     const note = this.failed ? `NS not reached: ${this.failed}` : !this.trains ? "Asking NS…" : this.trains.length ? "" : trip ? "No train gets you there in time any more." : "No trains in the coming hours.";
-    const compact = Boolean(shared("compact"));
+    const small = Boolean(shared("compact")), compact = small && !this.open;
     if (compact !== this.compact) { this.compact = compact; if (!checking()) this.fit(); }
     if (compact) {
       const list = this.trains ?? [], next = list.find((x) => !x.cancelled && x.leaves - Date.now() >= WALK) ?? list[0];
-      return h_flex().id("trains").size_full().min_h(0).rounded(10).overflow_hidden().items_center().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
+      return h_flex().id("trains").size_full().min_h(0).rounded(10).overflow_hidden().items_center().cursor_pointer().on_click((_e, cx) => { this.open = true; cx.notify(); }).bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
         .child(next ? this.row(next, 0, t).flex_1().min_w(0) : div().flex_1().px(14).text_size(11).text_color(this.failed ? t.ansi1 : t.dim).truncate().child(note))
         .when(this.troubles.length > 0, (el) => el.child(div().id("trouble-compact").flex_none().pr(14).font_semibold().text_color(t.blocked)
           .tooltip(this.troubles.map((d) => `${d.title}: ${d.does}`).join(" · ")).child("!")));
@@ -207,7 +208,8 @@ export default class Trains extends View {
           this.picking = !this.picking; this.matches = null;
           if (this.picking) { this.input.set_value(""); this.input.focus(); }
           this.fit(); cx.notify();
-        }))))
+        })))
+        .when(small, (el) => el.child(div().id("trains-less").px(5).rounded(4).flex_none().cursor_pointer().text_color(t.dim).hover((h) => h.bg(t.hover).text_color(t.foreground)).on_click((_e, cx) => { this.open = false; cx.notify(); }).child("less"))))
       .when(this.picking, (el) => el
         .child(div().px(14).h(30).flex_none().child(Input.new(this.input).w_full().h(24).px(6).rounded(5).border_1().border_color(t.accent).bg(t.background).text_size(12.5).text_color(t.foreground)))
         .children((this.matches ?? []).map((m, i) => h_flex().id(`station-${i}`).h(22).flex_none().mx(8).px(6).rounded(5).items_center().cursor_pointer().text_color(t.accent)

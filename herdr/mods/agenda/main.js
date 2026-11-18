@@ -5,7 +5,7 @@ import { exec, readTextFile, theme, home, checking, run, shared } from "herdr";
 // Today's meetings, under the right panel. They come from a cache the Claude
 // Code mod `my-tickets` keeps fresh (it can reach the calendar; this can't).
 // In the compact layout (shared "compact", on the laptop screen) it is one line: what is
-// on now or comes next. The block sizes itself (its id in the layout is BLOCK).
+// on now or comes next; a click shows the whole day, "less" makes it small again. The block sizes itself (its id in the layout is BLOCK).
 const BLOCK = "agenda", FULL = 230, LINE = 36;
 const MEETINGS = `${home()}/.cache/my-work/meetings.json`;
 // Why the last calendar sync failed, when it did (written by the same mod).
@@ -46,7 +46,7 @@ export default class Agenda extends View {
   }
 
   render() {
-    const t = theme(), now = Date.now(), compact = Boolean(shared("compact"));
+    const t = theme(), now = Date.now(), small = Boolean(shared("compact")), compact = small && !this.open;
     if (compact !== this.compact) { this.compact = compact; if (!checking()) run("layout.resize", { id: BLOCK, px: compact ? LINE : FULL }); }
     const today = this.meetings.filter((m) => sameDay(m.start, now));
     const left = today.filter((m) => m.end > now).length;
@@ -55,10 +55,12 @@ export default class Agenda extends View {
       : today.length ? "" : "Nothing on the calendar today.";
     return v_flex().id("agenda").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
       .child(h_flex().h(compact ? LINE - 2 : 36).flex_none().px(14).gap(8).items_center().when(!compact, (el) => el.border_b(1).border_color(t.border))
+        .when(compact, (el) => el.id("agenda-open").cursor_pointer().on_click((_e, cx) => { this.open = true; cx.notify(); }))
         .child(div().font_semibold().child("Today"))
         .when(!compact, (el) => el.child(div().flex_none().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted).child(`${left} to go`)))
         .when(compact, (el) => { const m = today.find((x) => x.end > now); return m ? el.child(this.row(m, now, t).flex_1().min_w(0)) : el; })
         .when(!compact, (el) => el.child(div().flex_1()))
+        .when(small && !compact, (el) => el.child(div().id("agenda-less").px(5).rounded(4).flex_none().cursor_pointer().text_color(t.dim).hover((h) => h.bg(t.hover).text_color(t.foreground)).on_click((_e, cx) => { this.open = false; cx.notify(); }).child("less").text_size(10.5)))
         .when(Boolean(this.failed?.error) && this.failed.at > (this.at ?? 0), (el) => el.child(div().id("agenda-failed").text_size(10.5).text_color(t.ansi1).tooltip(this.failed.error).child("sync failed")))
         .when(!compact, (el) => el.child(div().text_size(10.5).text_color(t.dim).child(this.at ? clock(this.at) : ""))))
       .when(!compact, (el) => el.child(div().flex_1().min_h(0).relative()

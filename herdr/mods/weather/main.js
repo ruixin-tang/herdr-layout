@@ -13,7 +13,7 @@ import { exec, theme, run, shared, setShared, checking } from "herdr";
 // over where I am through shared "weather.sky": { rise, set, mm, snow, cloud, outlook }
 // (the mountain strip draws it, the trains' nudge quotes the outlook).
 // In the compact layout (shared "compact", on the laptop screen) each place is one line,
-// without its bars.
+// without its bars; a click shows the whole block, "less" makes it small again.
 const PLACES = [["Den Bosch", 51.6978, 5.3037], ["Eindhoven", 51.4416, 5.4697]];
 const URL = `https://api.open-meteo.com/v1/forecast?latitude=${PLACES.map((p) => p[1]).join(",")}&longitude=${PLACES.map((p) => p[2]).join(",")}`
   + "&current=temperature_2m,weather_code,cloud_cover&daily=sunrise,sunset&forecast_days=1&timezone=Europe%2FAmsterdam";
@@ -103,14 +103,14 @@ export default class Weather extends View {
   }
 
   render() {
-    const t = theme(), compact = Boolean(shared("compact"));
+    const t = theme(), small = Boolean(shared("compact")), compact = small && !this.open;
     // The block follows the layout going compact or back.
     if (compact !== this.compact) { this.compact = compact; if (!checking()) this.settle(); }
     return v_flex().id("weather").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
       .children((this.places ?? []).slice(this.atHome() ? 1 : 0).map((p) => this.place(p, t, compact)))
-      .when(compact, (el) => el.justify_center())
+      .when(compact, (el) => el.justify_center().cursor_pointer().on_click((_e, cx) => { this.open = true; cx.notify(); }))
       .when(!compact, (el) => el.child(h_flex().px(14).items_center().text_size(9.5).text_color(t.dim)
-        .child(div().child("now")).child(div().flex_1())
+        .child(div().child("now")).when(small, (el) => el.child(div().id("weather-less").px(5).rounded(4).flex_none().cursor_pointer().text_color(t.dim).hover((h) => h.bg(t.hover).text_color(t.foreground)).on_click((_e, cx) => { this.open = false; cx.notify(); }).child("less"))).child(div().flex_1())
         // Which this network is; a click says the other.
         .when(Boolean(this.network), (el) => el.child(div().id("weather-here").px(5).rounded(4).cursor_pointer().tooltip(this.atHome() ? "This network is home: work's weather and the trains are hidden. Click if it is not." : "Click when this network is your home: work's weather and the trains hide here.")
           .hover((h) => h.bg(t.hover).text_color(t.foreground))
