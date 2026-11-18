@@ -130,11 +130,14 @@ export default class ForestSprite extends View {
   // The dialog, nearly as large as the window. By itself only when it is not open already
   // (opened after it was last closed, and not longer than half an hour ago) and the snooze is over.
   lesson(asked = false) {
-    if (!this.lessonDue() || shared("layout") !== LAYOUT) return;
+    const m = this.lessonDue();
+    if (!m || shared("layout") !== LAYOUT) return;
     const s = shared("dutch") ?? {}, now = Date.now(), today = s.day === new Date().toDateString();
     const open = today && s.openedAt > (s.closedAt ?? 0) && now - s.openedAt < 1800000;
-    if (open || (!asked && today && now - (s.closedAt ?? 0) < SNOOZE)) return;
-    openOverlay({ mod: "dutch", kind: "dialog", width: (this.win?.[0] ?? 1100) - 60, height: (this.win?.[1] ?? 700) - 60 });
+    // (Closed before the lesson began is not a snooze.)
+    if (open || (!asked && today && (s.closedAt ?? 0) >= m.start && now - s.closedAt < SNOOZE)) return;
+    // By itself it also opens the Journaal in the browser, so there is nothing to click.
+    openOverlay({ mod: "dutch", kind: "dialog", width: (this.win?.[0] ?? 1100) - 60, height: (this.win?.[1] ?? 700) - 60, props: { auto: !asked } });
   }
 
   // The meeting about to start (10 minutes ahead) or just started (5 minutes in), unless quieted.

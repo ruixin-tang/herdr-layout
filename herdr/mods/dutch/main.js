@@ -5,8 +5,10 @@ import { exec, theme, checking, shared, setShared, props, closeOverlay, notify }
 // The Dutch lesson, as a dialog over the whole window: every day my calendar has a
 // "Dutch" event, the forest sprite opens this when it starts, and it stays in the way
 // until I have watched the NOS Journaal in Makkelijke Taal.
-//   "Kijk nu"       opens the latest episode in the browser; WATCH minutes later the day
-//                   counts as done, the streak grows and the workspace comes back
+//   by itself       when the sprite opens it (props.auto) the Journaal opens in the browser
+//                   at once: nothing to click. WATCH minutes later the day counts as done,
+//                   the streak grows and the workspace comes back
+//   "Kijk nu"       the same by hand, when I opened the dialog myself
 //   Esc             only snoozes: the sprite opens it again a few minutes later
 //   "Niet vandaag"  asks twice, then lets me go and ends the streak
 // The state is shared as "dutch": { day, openedAt, closedAt, watchAt, done, skipped, streak, last }.
@@ -17,12 +19,13 @@ const clock = (at) => new Date(at).toTimeString().slice(0, 5);
 const before = (day) => { const d = new Date(day); do d.setDate(d.getDate() - 1); while (d.getDay() % 6 === 0); return d.toDateString(); };
 
 export default class Dutch extends View {
-  init(_props, cx) {
+  init(given, cx) {
     this.armed = false;
     if (checking()) return;
     const day = new Date().toDateString(), was = shared("dutch") ?? {};
     // A new day starts clean; the streak and its last day come along.
     this.set(was.day === day ? { openedAt: Date.now() } : { day, openedAt: Date.now(), closedAt: 0, watchAt: null, done: false, skipped: false });
+    if (given?.auto && !shared("dutch")?.watchAt) { exec("open", [URL]); this.set({ watchAt: Date.now() }); }
     // The countdown, and the end of the lesson.
     cx.timer.every(1000, (cx) => {
       const s = shared("dutch") ?? {};
