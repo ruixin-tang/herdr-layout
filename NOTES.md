@@ -84,7 +84,8 @@ Nothing: the four items of 18 November 2026 are built. What is left is seeing th
   window moves between screens: on 18 November it was only switched by hand in the large
   window. The two release-testing rows in the support-duty block (it was folded).
 - The five keys of my own pressed on the keyboard (their commands were run from a shell:
-  My work and Morning start seen, `needs-me` and `start-all` with something to do not).
+  only My work was seen working; `needs-me`, `brief`, `compact` by key and
+  `start-all` with a stack to start were not).
 - Shortcut training after a real click (the "Next time: ..." bubble): on 18 November only
   the cheer was seen, set off by a tab opened from a script, which it cannot tell from a key.
 - `dev-servers.morning` only reaches the sidebar block while the sidebar is shown.
