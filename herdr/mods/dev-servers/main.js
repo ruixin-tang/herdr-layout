@@ -1,6 +1,6 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { exec, theme, home, run, spaces, checking } from "herdr";
+import { exec, theme, home, run, spaces, checking, shared, setShared, nextCommand, openOverlay } from "herdr";
 
 // The local dev stacks, in the sidebar: one row per repo with one light (its
 // Rails port answers; `mise start` brings the rest), and its `mise start` kept in a Herdr terminal without a tab (named, so it is
@@ -8,12 +8,15 @@ import { exec, theme, home, run, spaces, checking } from "herdr";
 // A stack started outside Herdr still lights up, it just has no log here.
 // "stg" and "prod" open that repo's remote shell (my `rs` and `rp`) in a new tab;
 // prod asks for a second click.
+// On top, "Morning start" opens the `morning` dialog, which pulls master, has this
+// mod start both stacks ("dev-servers.start-all") and shows what changed overnight.
 const STACKS = [
   { key: "floryn", label: "Platform", folder: "floryn", ports: [["Rails", 3000]] },
   { key: "ais", label: "AIS", folder: "ais", ports: [["Rails", 4000]] },
 ];
 const name = (s) => `dev-${s.key}`;
 const REMOTES = [["stg", "staging"], ["prod", "production"]];
+const MORNING = { mod: "morning", kind: "dialog", width: 560, height: 600 };
 // One line per stack: its terminal's address when live ("-" if none), then 1/0 per port.
 const PROBE = STACKS.map((s) => `printf '%s' "$(hc get ${name(s)} 2>/dev/null | jq -r 'select(.state == "live") | .address' 2>/dev/null | grep . || echo -)"; ${s.ports.map(([, p]) => `nc -z -G 1 127.0.0.1 ${p} >/dev/null 2>&1 && printf ' 1' || printf ' 0'`).join("; ")}; echo`).join("; ");
 
@@ -23,21 +26,47 @@ export default class DevServers extends View {
     if (checking()) return;
     this.probe(cx);
     cx.timer.every(10000, (cx) => this.probe(cx));
+    // "dev-servers.start-all" (Morning start, or a key): starts every stack that is not running.
+    cx.spawn(async (cx) => {
+      for (;;) {
+        const c = await nextCommand();
+        if (c === "start-all") this.startAll(cx);
+        cx.notify();
+      }
+    });
+  }
+
+  // Also shared as "dev-servers.state" for the morning dialog, set only when it changes.
+  async look() {
+    const r = await exec("sh", ["-c", PROBE]).catch(() => null);
+    (r?.stdout ?? "").trim().split("\n").forEach((line, i) => {
+      const [address, ...up] = line.split(" ");
+      if (STACKS[i]) this.state[STACKS[i].key] = { terminal: address === "-" ? null : address, up: up.map((x) => x === "1") };
+    });
+    const now = JSON.stringify(this.state);
+    if (now !== this.published) { this.published = now; setShared("dev-servers.state", JSON.parse(now)); }
   }
 
   probe(cx) {
+    cx.spawn(async (cx) => { await this.look(); cx.notify(); });
+  }
+
+  startAll(cx) {
     cx.spawn(async (cx) => {
-      const r = await exec("sh", ["-c", PROBE]).catch(() => null);
-      (r?.stdout ?? "").trim().split("\n").forEach((line, i) => {
-        const [address, ...up] = line.split(" ");
-        if (STACKS[i]) this.state[STACKS[i].key] = { terminal: address === "-" ? null : address, up: up.map((x) => x === "1") };
-      });
+      await this.look();
+      for (const s of STACKS) {
+        const st = this.state[s.key];
+        if (!st?.terminal && !st?.up.some(Boolean)) await exec("hc", this.argv(s)).catch(() => null);
+      }
+      await this.look();
       cx.notify();
     });
   }
 
+  argv(s) { return ["run", "--bg", "--no-parent", "--name", name(s), "--cwd", `${home()}/${s.folder}`, "--", "zsh", "-lic", "mise start"]; }
+
   start(s, cx) {
-    exec("hc", ["run", "--bg", "--no-parent", "--name", name(s), "--cwd", `${home()}/${s.folder}`, "--", "zsh", "-lic", "mise start"])
+    exec("hc", this.argv(s))
       .catch(() => null).then(() => this.probe(cx));
   }
 
@@ -89,8 +118,12 @@ export default class DevServers extends View {
   }
 
   render() {
-    const t = theme();
+    const t = theme(), morning = shared("morning"), done = morning?.day === new Date().toDateString();
     return v_flex().id("dev-servers").size_full().pt(4).border_t(1).border_color(t.border).bg(t.chrome).text_size(12.5)
+      .child(h_flex().h(24).flex_none().px(6).gap(6).items_center()
+        .child(this.link("morning", "Morning start", done ? t.muted : t.accent, t, () => { openOverlay(MORNING); }))
+        .child(div().flex_1())
+        .when(done, (el) => el.child(div().pr(4).text_size(10.5).text_color(t.dim).child(`done ${new Date(morning.at).toTimeString().slice(0, 5)}`))))
       .children(STACKS.map((s) => this.row(s, t)));
   }
 }
