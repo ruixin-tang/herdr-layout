@@ -255,19 +255,20 @@ export default class Crew extends View {
     });
 
     // What falls from the sky right now, more of it when it pours. Every drop only ever
-    // goes down. It lives two steps: one waiting, hardly visible, at the top edge (it has
-    // to be inside the strip, or Herdr does not animate it), one falling through the
-    // strip, slanting with the wind, each starting at its own moment so they never come
-    // down in rows. Then a fresh one takes its place. Snow does the same, slowly.
+    // goes down. It lives three steps: one waiting, hardly visible, at the top edge (it
+    // has to be inside the strip, or Herdr does not animate it), then two in which it
+    // falls through the strip, slanting with the wind. Each starts at its own moment
+    // anywhere in a whole step, so the rain neither comes down in rows nor thins out
+    // between steps. Then a fresh one takes its place. Snow does the same, slowly.
     const mm = s.sky?.mm ?? 0, snow = Boolean(s.sky?.snow), wet = mm >= 0.1;
-    const count = !wet ? 0 : Math.round(Math.min(1, 0.4 + mm / 4) * (this.width / (snow ? 16 : 5)));
+    const count = !wet ? 0 : Math.round(Math.min(1, 0.4 + mm / 4) * (this.width / (snow ? 12 : 3.2)));
     const fall = snow ? 2800 : 1000;
     const falling = Array.from({ length: count }, (_, i) => {
-      const life = Math.floor((this.tick + i) / 2), going = (this.tick + i) % 2 === 1;
+      const life = Math.floor((this.tick + i) / 3), going = (this.tick + i) % 3 > 0;
       // A new place, moment and look for every life, well scrambled, so the rain does not repeat or line up.
       let seed = Math.imul(i + 1, 2654435761) ^ Math.imul(life + 1, 1597334677);
       seed = Math.imul(seed ^ (seed >>> 15), 2246822519); seed = (seed ^ (seed >>> 13)) >>> 0;
-      const x = seed % (this.width + 60), wait = snow ? 0 : (seed >>> 8) % (STEP - fall), near = (seed >>> 20) % 3;
+      const x = seed % (this.width + 60), wait = (seed >>> 8) % STEP, near = (seed >>> 20) % 3;
       const drift = snow ? ((seed % 3) - 1) * 18 : -40;
       return div().id(`fall-${i}-${life}`).absolute().left(going ? x + drift : x).top(going ? H + 20 : snow ? seed % 40 : 0)
         .opacity(going ? (snow ? 0.85 : 0.26 + near * 0.11) : 0.02)
