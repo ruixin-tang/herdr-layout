@@ -24,10 +24,11 @@ const SOON = 10 * 60000, LATE = 5 * 60000;
 const SKY = [["06:00", "sheikah-dawn", "#3b2c44", "#0a1118"], ["10:00", "sheikah", "#0e2e38", "#050d10"], ["14:30", "sheikah-dusk", "#4a2a1c", "#0c0a12"], ["17:15", "sheikah-night", "#0b1636", "#02040a"]];
 const LAYOUT = "over9k";
 // The compact layout, for the laptop screen: a window narrower than LAPTOP gets a lower
-// mountain strip, a narrower right panel and a shorter agenda, [block, full px, compact px].
+// mountain strip and a narrower right panel, [block, full px, compact px]. The weather, trains
+// and agenda blocks read the shared "compact" and make themselves one line each.
 // "forest-sprite.compact" (a key) switches by hand; that choice holds until it is the
 // window's own again.
-const LAPTOP = 1800, COMPACT = [["crew", 260, 160], ["panel", 368, 312], ["agenda", 230, 150]];
+const LAPTOP = 1800, COMPACT = [["crew", 260, 160], ["panel", 368, 312]];
 
 export default class ForestSprite extends View {
   init(_props, cx) {

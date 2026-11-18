@@ -93,7 +93,9 @@ export default class Trains extends View {
     const shown = Boolean(this.trip) || (now >= SHOW_FROM && (now < SHOW_UNTIL || Boolean(this.elsewhere())) && shared("my-work.place") !== "home");
     run(shown ? "layout.show" : "layout.hide", { id: BLOCK });
     const picking = this.picking ? 30 + (this.matches ? Math.max(1, this.matches.length) * 22 : 0) : 0;
-    if (shown) run("layout.resize", { id: BLOCK, px: 26 + picking + this.troubles.length * 22 + Math.max(1, (this.trains ?? []).length) * 22 + 12 });
+    // Compact (the laptop screen): one line, the next train I can still catch.
+    if (shown && shared("compact")) run("layout.resize", { id: BLOCK, px: 34 });
+    else if (shown) run("layout.resize", { id: BLOCK, px: 26 + picking + this.troubles.length * 22 + Math.max(1, (this.trains ?? []).length) * 22 + 12 });
     return shown;
   }
 
@@ -187,6 +189,15 @@ export default class Trains extends View {
   render() {
     const t = theme(), trip = this.trip, other = trip ? null : this.elsewhere();
     const note = this.failed ? `NS not reached: ${this.failed}` : !this.trains ? "Asking NS…" : this.trains.length ? "" : trip ? "No train gets you there in time any more." : "No trains in the coming hours.";
+    const compact = Boolean(shared("compact"));
+    if (compact !== this.compact) { this.compact = compact; if (!checking()) this.fit(); }
+    if (compact) {
+      const list = this.trains ?? [], next = list.find((x) => !x.cancelled && x.leaves - Date.now() >= WALK) ?? list[0];
+      return h_flex().id("trains").size_full().min_h(0).rounded(10).overflow_hidden().items_center().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
+        .child(next ? this.row(next, 0, t).flex_1().min_w(0) : div().flex_1().px(14).text_size(11).text_color(this.failed ? t.ansi1 : t.dim).truncate().child(note))
+        .when(this.troubles.length > 0, (el) => el.child(div().id("trouble-compact").flex_none().pr(14).font_semibold().text_color(t.blocked)
+          .tooltip(this.troubles.map((d) => `${d.title}: ${d.does}`).join(" · ")).child("!")));
+    }
     return v_flex().id("trains").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
       .child(h_flex().h(26).flex_none().px(14).gap(4).items_center().text_size(11).text_color(t.muted)
         .child(div().id("trains-title").flex_1().min_w(0).truncate().when(Boolean(trip), (el) => el.text_color(t.accent).tooltip(`For "${trip.title}": at the station by ${clock(trip.by)}`))

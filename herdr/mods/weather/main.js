@@ -12,6 +12,8 @@ import { exec, theme, run, shared, setShared, checking } from "herdr";
 // Where I am goes to the other mods through shared "my-work.place", and the sky
 // over where I am through shared "weather.sky": { rise, set, mm, snow, cloud, outlook }
 // (the mountain strip draws it, the trains' nudge quotes the outlook).
+// In the compact layout (shared "compact", on the laptop screen) each place is one line,
+// without its bars.
 const PLACES = [["Den Bosch", 51.6978, 5.3037], ["Eindhoven", 51.4416, 5.4697]];
 const URL = `https://api.open-meteo.com/v1/forecast?latitude=${PLACES.map((p) => p[1]).join(",")}&longitude=${PLACES.map((p) => p[2]).join(",")}`
   + "&current=temperature_2m,weather_code,cloud_cover&daily=sunrise,sunset&forecast_days=1&timezone=Europe%2FAmsterdam";
@@ -43,7 +45,8 @@ export default class Weather extends View {
   settle() {
     const place = this.atHome() ? "home" : "away";
     if (shared("my-work.place") !== place) setShared("my-work.place", place);
-    run("layout.resize", { id: BLOCK, px: (place === "home" ? PLACES.length - 1 : PLACES.length) * ROW + 26 });
+    const n = place === "home" ? PLACES.length - 1 : PLACES.length;
+    run("layout.resize", { id: BLOCK, px: this.compact ? n * 28 + 8 : n * ROW + 26 });
   }
 
   load(cx) {
@@ -79,7 +82,7 @@ export default class Weather extends View {
     return stop < 0 ? `${what} for 2 hours` : `${what} until ${p.rain[stop].at}`;
   }
 
-  place(p, t) {
+  place(p, t, compact) {
     return v_flex().flex_none().px(14).py(5).gap(3)
       .child(h_flex().gap(8).items_center()
         .child(div().w(70).flex_none().child(p.name))
@@ -89,21 +92,24 @@ export default class Weather extends View {
         .child(div().flex_none().text_size(11).text_color(p.rain.some((x) => x.mm >= WET) ? t.accent : t.dim).child(this.outlook(p))))
       // 24 times five minutes: blue for rain, white for snow, a faint tick when dry.
       // Each one is a full-height column to hover: when, and how hard.
-      .child(h_flex().h(BAR).gap(1.5)
+      .when(!compact, (el) => el.child(h_flex().h(BAR).gap(1.5)
         .children(p.rain.map((x, i) => {
           const wet = x.mm >= WET;
           const says = !wet ? "dry" : `${x.mm < 1 ? x.mm.toFixed(1) : Math.round(x.mm)} mm an hour · ${x.mm < 1 ? "light" : x.mm < 5 ? "moderate" : "heavy"} ${p.snow ? "snow" : "rain"}`;
           return v_flex().id(`bar-${p.name}-${i}`).flex_1().h(BAR).justify_end().tooltip(`${x.at} · ${says}`)
             .hover((el) => el.bg(t.hover))
             .child(div().rounded(1.5).h(wet ? Math.max(3, Math.round(Math.min(1, Math.sqrt(x.mm / FULL)) * BAR)) : 2).bg(!wet ? t.border : p.snow ? t.foreground : t.accent));
-        })));
+        }))));
   }
 
   render() {
-    const t = theme();
+    const t = theme(), compact = Boolean(shared("compact"));
+    // The block follows the layout going compact or back.
+    if (compact !== this.compact) { this.compact = compact; if (!checking()) this.settle(); }
     return v_flex().id("weather").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
-      .children((this.places ?? []).slice(this.atHome() ? 1 : 0).map((p) => this.place(p, t)))
-      .child(h_flex().px(14).items_center().text_size(9.5).text_color(t.dim)
+      .children((this.places ?? []).slice(this.atHome() ? 1 : 0).map((p) => this.place(p, t, compact)))
+      .when(compact, (el) => el.justify_center())
+      .when(!compact, (el) => el.child(h_flex().px(14).items_center().text_size(9.5).text_color(t.dim)
         .child(div().child("now")).child(div().flex_1())
         // Which this network is; a click says the other.
         .when(Boolean(this.network), (el) => el.child(div().id("weather-here").px(5).rounded(4).cursor_pointer().tooltip(this.atHome() ? "This network is home: work's weather and the trains are hidden. Click if it is not." : "Click when this network is your home: work's weather and the trains hide here.")
@@ -113,7 +119,7 @@ export default class Weather extends View {
             localStorage.setItem("homes", JSON.stringify(this.homes)); this.settle(); cx.notify();
           })
           .child(this.atHome() ? "at home" : "not at home")))
-        .child(div().flex_1()).child(div().child(this.failed ? "weather not reached" : "+2 h")))
+        .child(div().flex_1()).child(div().child(this.failed ? "weather not reached" : "+2 h"))))
       .when(!this.places, (el) => el.child(div().px(14).py(8).text_size(11).text_color(t.dim).child(this.failed ? "The weather service did not answer." : "Fetching the weather…")));
   }
 }
