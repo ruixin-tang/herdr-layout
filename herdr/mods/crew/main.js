@@ -17,12 +17,16 @@ import { agents, theme, run, shared, layout, appHome, readTextFile, exec, checki
 // A click goes to that agent. Its colour stays with its terminal.
 // In the ski season (November to March) it is a ski resort ("ski"), the rest of
 // the year the same mountain in summer with hikers ("alp").
+// The sky is the real one over where I am (the weather mod's shared "weather.sky"):
+// the sun crosses from sunrise to sunset, the moon at night, clouds when it is
+// overcast, a darker sky and falling rain or snow when the radar says so; the
+// mountain's colours go with the light. A clock sits in the sky, top left.
 // The mountain is drawn here, as wide as the strip (the valley on the left, the
 // summit station at the right edge), and saved as one picture under data/;
 // the figures are <season>-<colour>-<pose>.svg (crew-gen.py and crew-resort.py made them).
 const ART = "mods/crew", SCENES = "data/crew-scene";
 // Raise this when the mountain is drawn differently: a saved picture is reused by its name.
-const DRAWING = 3;
+const DRAWING = 4;
 const H = 260, SIZE = 56, STEP = 3000;
 const VALLEY = 232, SUMMIT = 84;
 // The valley floor, left to right: the hut, its benches, the flag with the queue, the lift station.
@@ -35,9 +39,27 @@ const LOOKS = {
   ski: { bands: ["#3d6375", "#30525f", "#25424e"], edge: ["#e9f0f2", 5], tree: "#14323a", roof: "#eef3f5" },
   alp: { bands: ["#3f6f4c", "#31593f", "#254635"], edge: ["#8fd16a", 4], tree: "#173f2c", roof: "#a07a55" },
 };
-const PEAKS = '<path d="M0 110 L90 44 L150 80 L250 8 L330 70 L400 36 L520 110z" fill="#132a34"/><path d="M250 8 L226 26 l10 3 6 -6 9 8 8 -7 9 6 9 -4z M400 36 L384 48 l8 2 6 -5 8 6 8 -4z M90 44 L76 55 l8 1 6 -4 8 5 7 -3z" fill="#dfe8ec" opacity=".55"/>';
+const PEAKS = '<path d="M0 110 L90 44 L150 80 L250 8 L330 70 L400 36 L520 110z" fill="FAR"/><path d="M250 8 L226 26 l10 3 6 -6 9 8 8 -7 9 6 9 -4z M400 36 L384 48 l8 2 6 -5 8 6 8 -4z M90 44 L76 55 l8 1 6 -4 8 5 7 -3z" fill="#dfe8ec" opacity=".55"/>';
 const STATION_ART = '<rect x="8" y="30" width="56" height="40" fill="#2b4250"/><path d="M2 32 L36 10 L70 32z" fill="#3a5666"/><path d="M2 32 L36 10 L70 32 L64 32 L36 15 L8 32z" fill="ROOF"/>'
   + '<rect x="16" y="40" width="14" height="12" rx="1" fill="#ffd166" opacity=".9"/><path d="M23 40 v12 M16 46 h14" stroke="#2b4250" stroke-width="1"/><rect x="38" y="42" width="18" height="28" rx="1" fill="#16303c"/>';
+// Blends two colours: mix("#000000", "#ffffff", 0.25) is a quarter of the way to white.
+const mix = (a, b, k) => `#${[1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - k) + parseInt(b.slice(i, i + 2), 16) * k).toString(16).padStart(2, "0")).join("")}`;
+// The light at a moment: the sky's two colours, how dark the land is, and where the sun or moon stands (0 rising, 1 setting).
+function light(sky, now) {
+  const HOUR = 3600000, rise = sky?.rise ?? new Date(now).setHours(8, 0, 0, 0), set = sky?.set ?? new Date(now).setHours(17, 0, 0, 0);
+  const near = (at) => Math.max(0, 1 - Math.abs(now - at) / (0.7 * HOUR));
+  const day = now > rise && now < set, glow = Math.max(near(rise), near(set));
+  let top = day ? "#2a5f88" : "#060a15", low = day ? "#6da3c4" : "#101b2e";
+  top = mix(top, "#2c2a57", glow * 0.8); low = mix(low, "#d27a4e", glow * 0.85);
+  // Overcast greys it, rain or snow darkens it.
+  const grey = Math.min(1, (sky?.cloud ?? 0) / 100) * 0.55 + ((sky?.mm ?? 0) >= 0.1 ? 0.2 : 0);
+  top = mix(top, day ? "#39434d" : "#0b0f17", grey); low = mix(low, day ? "#5d6a74" : "#141b25", grey);
+  const night = day ? 0 : 1 - glow;
+  const at = day ? (now - rise) / (set - rise) : now >= set ? (now - set) / (rise + 24 * HOUR - set) : (now + 24 * HOUR - set) / (rise + 24 * HOUR - set);
+  return { top, low, day, glow, night, grey, at, shade: (c) => mix(mix(mix(c, "#0a1422", night * 0.55), "#b06a55", glow * 0.16), "#56626b", day ? grey * 0.3 : 0) };
+}
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const hash = (address) => [...address].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7);
 const season = () => ([10, 11, 0, 1, 2].includes(new Date().getMonth()) ? "ski" : "alp");
 
@@ -62,8 +84,9 @@ function along(line, n) {
 }
 
 // Everything that depends on the strip's width: the lines, the laps' waypoints, and the picture.
-function mountain(W, look, cafe) {
-  const f = fit(W), L = LOOKS[look];
+function mountain(W, look, cafe, sky, now) {
+  const f = fit(W), lit = light(sky, now);
+  const L = { ...LOOKS[look], bands: LOOKS[look].bands.map(lit.shade), edge: [lit.shade(LOOKS[look].edge[0]), LOOKS[look].edge[1]], tree: lit.shade(LOOKS[look].tree) };
   const profile = PROFILE.map(([x, y]) => [f(x), y]), cable = CABLE.map(([x, y]) => [f(x), y]);
   const ground = (x) => heightAt(profile, x);
   const path = (pts) => `M${pts.map(([x, y]) => `${x} ${y}`).join(" L")}`;
@@ -80,11 +103,24 @@ function mountain(W, look, cafe) {
   const pylon = ([x, y]) => `<path d="M${x} ${y} V${Math.round(ground(x)) + 4}" stroke="#3f6272" stroke-width="5"/><path d="M${x - 13} ${y} h26" stroke="#3f6272" stroke-width="5" stroke-linecap="round"/>`;
   const roofed = (art) => (look === "alp" ? art.replaceAll('"#eef3f5"', `"${L.roof}"`) : art).replaceAll("ROOF", L.roof);
   // Far peaks behind the slope, their feet hidden by it.
-  const far = Array.from({ length: Math.ceil(W / 430) + 1 }, (_, i) => { const x = -40 + i * 430; return `<g transform="translate(${x},${Math.round(ground(x + 260)) - 108 - (i % 2) * 14})">${PEAKS}</g>`; }).join("");
+  const far = Array.from({ length: Math.ceil(W / 430) + 1 }, (_, i) => { const x = -40 + i * 430; return `<g transform="translate(${x},${Math.round(ground(x + 260)) - 108 - (i % 2) * 14})">${PEAKS.replace("FAR", mix(lit.shade("#1d3a48"), lit.low, 0.35))}</g>`; }).join("");
   const marks = look === "ski"
     ? [[1290, "#ff9a3c"], [1180, "#5fd7ff"], [850, "#ff9a3c"], [780, "#5fd7ff"], [680, "#ff9a3c"], [590, "#5fd7ff"]].map(([x, c]) => gate(x, c)).join("")
     : [580, 650, 740, 820, 1160, 1230, 1290].map(flowers).join("") + cow(1060) + cow(960);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${far}`
+  // The sky: its colours, a few stars at night, the sun or the moon on its arc, clouds by how overcast it is.
+  const bodyX = Math.round(70 + lit.at * (W - 140)), bodyY = Math.round(150 - Math.sin(Math.PI * lit.at) * 118);
+  const veil = 1 - Math.min(0.75, lit.grey);
+  const body = lit.day
+    ? `<circle cx="${bodyX}" cy="${bodyY}" r="34" fill="#ffd98a" opacity="${(0.18 * veil).toFixed(2)}"/><circle cx="${bodyX}" cy="${bodyY}" r="15" fill="#ffd166" opacity="${veil.toFixed(2)}"/>`
+    : `<circle cx="${bodyX}" cy="${bodyY}" r="13" fill="#e9eef2" opacity="${veil.toFixed(2)}"/><circle cx="${bodyX + 6}" cy="${bodyY - 4}" r="12" fill="${lit.top}"/>`;
+  const stars = lit.night > 0.3 ? Array.from({ length: Math.round(W / 34) }, (_, i) => `<circle cx="${(i * 7919) % W}" cy="${8 + ((i * 104729) % 120)}" r="${i % 5 === 0 ? 1.4 : 0.9}" fill="#dfe8ec" opacity="${(0.25 + (i % 4) * 0.15) * lit.night * veil}"/>`).join("") : "";
+  const cover = Math.min(1, (sky?.cloud ?? 0) / 100), cloudFill = mix(lit.day ? "#e6edf1" : "#4a5563", "#2f3740", (sky?.mm ?? 0) >= 0.1 ? 0.5 : 0);
+  const clouds = cover < 0.25 ? "" : Array.from({ length: Math.round((W / 260) * cover) + 1 }, (_, i) => {
+    const x = Math.round(((i * 2654435761) % 1000) / 1000 * W), y = 18 + ((i * 97) % 60), w = 70 + ((i * 53) % 60);
+    return `<g opacity="${(0.35 + cover * 0.4).toFixed(2)}" fill="${cloudFill}"><ellipse cx="${x}" cy="${y}" rx="${w}" ry="13"/><ellipse cx="${x - w * 0.35}" cy="${y - 9}" rx="${w * 0.4}" ry="12"/><ellipse cx="${x + w * 0.25}" cy="${y - 12}" rx="${w * 0.45}" ry="15"/></g>`;
+  }).join("");
+  const heaven = `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lit.top}"/><stop offset="1" stop-color="${lit.low}"/></linearGradient></defs><rect width="${W}" height="${H}" fill="url(#sky)"/>${stars}${body}${clouds}`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${heaven}${far}`
     + band(0, L.bands[0]) + band(22, L.bands[1]) + band(54, L.bands[2])
     + [[620, 1], [645, 0.8], [672, 1.1], [790, 0.9], [815, 1.1], [1165, 0.8], [1250, 1], [1276, 0.85], [1470, 1]].map(([x, s]) => tree(x, s)).join("")
     + `<path d="${path(profile)}" stroke="${L.edge[0]}" stroke-width="${L.edge[1]}" fill="none" stroke-linejoin="round"/>${marks}${cable.slice(1, -1).map(pylon).join("")}`
@@ -152,12 +188,14 @@ export default class Crew extends View {
         const panel = find(layout(), "panel");
         const side = shared("sidebar.collapsed") ? 44 : shared("sidebar.width") ?? 268;
         const width = Math.max(960, Math.round(win - side - 16 - (panel && !panel.hidden ? (panel.size?.px ?? 368) + 8 : 0)));
-        const look = season(), key = `${look}-${width}-${DRAWING}`;
+        const sky = shared("weather.sky") ?? null, now = Date.now();
+        // A new picture every ten minutes, and when rain starts or stops.
+        const look = season(), key = `${look}-${width}-${DRAWING}-${Math.floor(now / 600000)}${(sky?.mm ?? 0) >= 0.1 ? "w" : "d"}`;
         if (this.scene?.key !== key) {
           const cafe = (await readTextFile(`${appHome()}/${ART}/ski-cafe.svg`)).trim().replace(/^<svg[^>]*>|<\/svg>$/g, "");
-          const m = mountain(width, look, cafe);
+          const m = mountain(width, look, cafe, sky, now);
           await exec("sh", ["-c", 'mkdir -p "$1" && rm -f "$1"/*.svg && printf %s "$3" > "$1/$2"', "sh", `${appHome()}/${SCENES}`, `${key}.svg`, m.svg]);
-          this.width = width; this.scene = { ...m, key, look };
+          this.width = width; this.scene = { ...m, key, look, sky, dark: light(sky, now).night > 0.5 };
           if (!this.started) this.step();
         }
       } catch { /* keeps the last mountain */ }
@@ -216,8 +254,23 @@ export default class Crew extends View {
       return this.figure(a, "rest", BENCHES[0] + i * gap, VALLEY - 48 + 4, t, { size: 48, dim: true, drop: (i % 2) * 12 });
     });
 
+    // What falls from the sky right now: streaks of rain, or flakes of snow; more of them when it pours.
+    const mm = s.sky?.mm ?? 0, drops = mm < 0.1 ? 0 : Math.round(Math.min(1, 0.35 + mm / 4) * (this.width / 26));
+    const falling = Array.from({ length: drops }, (_, i) => {
+      const x = (i * 7919 + 13) % this.width, y = (i * 104729) % (H - 40);
+      return s.sky.snow
+        ? div().absolute().left(x).top(y).size(3).rounded(2).bg("#f4f7f8").opacity(0.8).loop("top", { from: y, to: y + 16, period: 2600 + (i % 5) * 400, easing: "ease-in-out" })
+        : div().absolute().left(x).top(y).w(1).h(9).bg("#a9c7d6").opacity(0.55).loop("top", { from: y, to: y + 22, period: 320 + (i % 4) * 60, easing: "linear" });
+    });
+    const now = new Date();
+
     return frame
       .child(image(`${SCENES}/${s.key}.svg`).absolute().left(0).top(0).w(this.width).h(H))
+      .children(falling)
+      // The clock: the time large, the day under it.
+      .child(v_flex().absolute().left(16).top(8).text_color("#f4f7f8")
+        .child(div().text_size(28).font_semibold().child(now.toTimeString().slice(0, 5)))
+        .child(div().text_size(11).opacity(0.8).child(`${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]}`)))
       .children(figures)
       .when(!list.length, (el) => el.child(div().absolute().left(560).top(VALLEY - 16).text_size(11).text_color(t.dim).child("Nobody on the mountain: start an agent and it takes the lift.")));
   }

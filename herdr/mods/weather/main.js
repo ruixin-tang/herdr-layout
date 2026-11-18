@@ -9,10 +9,12 @@ import { exec, theme, run, shared, setShared, checking } from "herdr";
 // At home the first place (work) is left out, and the trains block hides: "home"
 // is any network I marked as such with the label at the bottom. A network is
 // known by its router (address and hardware address); macOS keeps its name secret.
-// Where I am goes to the other mods through shared "my-work.place".
+// Where I am goes to the other mods through shared "my-work.place", and the sky
+// over where I am through shared "weather.sky": { rise, set, mm, snow, cloud, outlook }
+// (the mountain strip draws it, the trains' nudge quotes the outlook).
 const PLACES = [["Den Bosch", 51.6978, 5.3037], ["Eindhoven", 51.4416, 5.4697]];
 const URL = `https://api.open-meteo.com/v1/forecast?latitude=${PLACES.map((p) => p[1]).join(",")}&longitude=${PLACES.map((p) => p[2]).join(",")}`
-  + "&current=temperature_2m,weather_code&timezone=Europe%2FAmsterdam";
+  + "&current=temperature_2m,weather_code,cloud_cover&daily=sunrise,sunset&forecast_days=1&timezone=Europe%2FAmsterdam";
 // One answer per place, 24 lines "077|15:20": the time and a strength, 10 ^ ((n - 109) / 32) mm an hour.
 const RAIN = PLACES.map((p) => `curl -s -m 15 "https://gpsgadget.buienradar.nl/data/raintext?lat=${p[1].toFixed(2)}&lon=${p[2].toFixed(2)}" | tr '\n' ' '; echo`).join("; ");
 const SNOWY = [71, 73, 75, 77, 85, 86];
@@ -57,8 +59,11 @@ export default class Weather extends View {
           const rain = radar[i] ?? [], snow = SNOWY.includes(d.current.weather_code);
           // The radar knows better than the model whether it is wet right now.
           const now = (rain[0]?.mm ?? 0) >= WET ? (snow ? "Snow" : rain[0].mm >= 2 ? "Rain" : "Light rain") : sky(d.current.weather_code);
-          return { name: PLACES[i][0], temp: Math.round(d.current.temperature_2m), sky: now, rain, snow };
+          return { name: PLACES[i][0], temp: Math.round(d.current.temperature_2m), sky: now, rain, snow,
+            rise: Date.parse(d.daily.sunrise[0]), set: Date.parse(d.daily.sunset[0]), cloud: d.current.cloud_cover ?? 0 };
         });
+        const here = this.places[this.atHome() ? this.places.length - 1 : 0];
+        setShared("weather.sky", { rise: here.rise, set: here.set, mm: Math.round((here.rain[0]?.mm ?? 0) * 10) / 10, snow: here.snow, cloud: here.cloud, outlook: this.outlook(here) });
         this.at = Date.now(); this.failed = false;
       } catch { this.failed = true; }
       cx.notify();
