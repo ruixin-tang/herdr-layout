@@ -1,0 +1,6 @@
+{
+  "name": "my-tickets",
+  "version": "0.1.0",
+  "description": "A pane listing the open Diligence tickets where I am owner, reviewer or pairbuddy",
+  "types": "./types/index.d.ts"
+}
