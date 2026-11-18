@@ -747,6 +747,9 @@ export default class Spaces extends View {
         }
         const subsChanged = JSON.stringify([subs, tasks]) !== JSON.stringify([this.subs ?? {}, this.tasks ?? {}]);
         this.subs = subs;
+        // For the crew mod (the mountain): each agent's running subagents, set only when they change.
+        const running = Object.fromEntries(Object.entries(subs).map(([addr, list]) => [addr, list.filter((x) => !x.done && Date.now() / 1000 - x.at < 86400).map((x) => ({ id: x.id, desc: x.desc }))]).filter(([, list]) => list.length));
+        if (JSON.stringify(running) !== JSON.stringify(shared("over9k.subs") ?? {})) setShared("over9k.subs", running);
         this.tasks = tasks;
         // What's gone is forgotten: when started terminals were first seen, viewers kept.
         const live = new Set(terminals().filter((k) => k.state === "live").map((k) => k.address));

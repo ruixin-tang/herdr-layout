@@ -1,6 +1,6 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, theme, run, shared, layout, appHome, readTextFile, exec, checking } from "herdr";
+import { agents, terminals, theme, run, shared, layout, appHome, readTextFile, exec, checking } from "herdr";
 
 // The crew on a mountain seen from the side, in a strip above the terminals.
 // Every agent is a small figure, and where it is says what it does:
@@ -13,6 +13,10 @@ import { agents, theme, run, shared, layout, appHome, readTextFile, exec, checki
 //   idle    -> on a bench beside the hut, at the far left of the valley, dimmed
 // Nobody flies: on the mountain they follow the lift and the slope, in the
 // valley they walk along the floor.
+// An agent's sub-agents are small figures in its colour right behind it, wherever
+// it goes: in chairs of their own on the lift, in its track on the way down.
+// They are Claude Code's subagents (the sidebar mod shares the running ones as
+// "over9k.subs") and Herdr's own (agents an agent started with `hc run`).
 // Once I have looked at a done agent Herdr makes it idle, so it walks to the hut.
 // A click goes to that agent. Its colour stays with its terminal.
 // In the ski season (November to March) it is a ski resort ("ski"), the rest of
@@ -28,6 +32,8 @@ const ART = "mods/crew", SCENES = "data/crew-scene";
 // Raise this when the mountain is drawn differently: a saved picture is reused by its name.
 const DRAWING = 4;
 const H = 260, SIZE = 56, STEP = 3000;
+// A follower's size, how far the first one is behind its parent, and how many are drawn.
+const SMALL = 28, BEHIND = 34, TRAIL = 20, FOLLOWERS = 4;
 const VALLEY = 232, SUMMIT = 84;
 // The valley floor, left to right: the hut, its benches, the flag with the queue, the lift station.
 const BENCHES = [168, 300], QUEUE = 350, STATION = 400, FLAT = 530;
@@ -207,7 +213,8 @@ export default class Crew extends View {
 
   // One agent at a spot (x: its middle, y: the top of its drawing), gliding there
   // from wherever it was: its drawing, a "!" above when it wants me, its name below.
-  figure(a, pose, x, y, t, { size = SIZE, wants = false, dim = false, bounce = 0, drop = 0 } = {}) {
+  // `back`: where "behind" is, as [direction along x, the slope there]; followers hang or stand along it.
+  figure(a, pose, x, y, t, { size = SIZE, wants = false, dim = false, bounce = 0, drop = 0, back = [-1, 0] } = {}) {
     const name = a.title.replace(/^[^A-Za-z0-9]+/, "") || a.tab_name || a.program?.name || "agent";
     const says = a.status === "done" ? "finished, have a look" : a.status === "blocked" ? "needs your answer" : a.status;
     const body = v_flex().w(84).items_center()
@@ -219,13 +226,35 @@ export default class Crew extends View {
         .child(image(`${ART}/${this.scene.look}-${SUITS[hash(a.address) % SUITS.length]}-${pose}.svg`).w(size).h(size).when(dim, (el) => el.opacity(0.55))))
       .child(div().w(84).h(13).mt(drop).text_size(10).truncate().text_color(wants ? t.blocked : dim ? t.dim : t.muted).child(name));
     // In a chair it is another element than on foot, so it gets on and off in one go and never glides between cable and ground.
-    return div().id(`crew-${a.address}-${pose === "working" ? "chair" : "foot"}`).absolute().left(x - 42).top(y - 14)
+    // The followers are part of the figure, so they glide along with it. Chairs line up
+    // by their tops (the cable), everybody else by their feet.
+    const kids = this.followers(a), suit = SUITS[hash(a.address) % SUITS.length], chair = pose === "working";
+    const small = chair ? "working" : pose === "rest" || pose === "stuck" ? pose : this.scene.look === "ski" ? "carve" : "down";
+    const trail = kids.slice(0, FOLLOWERS).map((k, i) => {
+      const dx = back[0] * (BEHIND + i * TRAIL), dy = Math.round(back[1] * dx);
+      return div().id(`crew-sub-${a.address}-${i}`).absolute().left(42 + dx - SMALL / 2).top(14 + dy + (chair ? 0 : size - SMALL - 2))
+        .w(SMALL).h(SMALL).cursor_pointer().tooltip(`${k} · sub-agent of ${name}`)
+        .on_click(() => { run("agent.focus", { terminal: a.address }); })
+        .child(image(`${ART}/${this.scene.look}-${suit}-${small}.svg`).w(SMALL).h(SMALL).opacity(dim ? 0.5 : 0.9));
+    });
+    const more = kids.length > FOLLOWERS ? [div().absolute().left(42 + back[0] * (BEHIND + FOLLOWERS * TRAIL) - 10).top(14 + Math.round(back[1] * back[0] * (BEHIND + FOLLOWERS * TRAIL)) + (chair ? 8 : size - 16))
+      .w(20).text_size(10).text_color(t.muted).child(`+${kids.length - FOLLOWERS}`)] : [];
+    return div().id(`crew-${a.address}-${chair ? "chair" : "foot"}`).absolute().left(x - 42).top(y - 14)
       .transition("left", { duration: STEP, easing: "linear" }).transition("top", { duration: STEP, easing: "linear" })
+      .children(trail).children(more)
       .child(div().relative().child(body).when(bounce > 0, (el) => el.loop("top", { from: 0, to: -4, period: bounce })));
+  }
+
+  // The names of an agent's running sub-agents: what each was asked to do.
+  followers(a) {
+    const mine = terminals().filter((k) => k.parent === a.address && k.state === "live" && k.program?.agent).map((k) => k.title || k.name || k.program?.name || "agent");
+    return [...(shared("over9k.subs")?.[a.address] ?? []).map((x) => x.desc || "subagent"), ...mine];
   }
 
   render() {
     const t = theme(), s = this.scene;
+    // The slope of a line at one of its points, for the followers behind a figure there.
+    const slope = (line, i) => { const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)]; return (b[1] - a[1]) / (b[0] - a[0] || 1); };
     const frame = div().id("crew").size_full().relative().overflow_hidden().rounded(6).bg(t.chrome).border_1().border_color(t.border);
     if (!s) return frame;
     const list = agents();
@@ -241,11 +270,12 @@ export default class Crew extends View {
         const at = this.lap[a.address], stuck = a.status === "blocked";
         // On foot to the station first: a chair only ever hangs from the cable.
         if (at === 0) return this.figure(a, s.look === "ski" ? "carve" : "down", s.lift[0][0], VALLEY - SIZE + 4, t, { wants });
-        if (at <= s.lift.length) return this.figure(a, "working", s.lift[at - 1][0], s.lift[at - 1][1], t, { wants });
+        if (at <= s.lift.length) return this.figure(a, "working", s.lift[at - 1][0], s.lift[at - 1][1], t, { wants, back: [-1, slope(s.lift, at - 1)] });
         const leg = at - 1 - s.lift.length, [x, y] = s.down[leg];
         // In the air over the jump, unless it sits there waiting for me.
         const air = !stuck && leg === s.jump ? 30 : 0;
-        return this.figure(a, stuck ? "stuck" : "down", x, y - SIZE + 4 - air, t, { wants });
+        // They come down from the right, so behind is uphill.
+        return this.figure(a, stuck ? "stuck" : "down", x, y - SIZE + 4 - air, t, { wants, back: [1, slope(s.down, leg)] });
       }
       if (wants) {
         const i = queue.indexOf(a);

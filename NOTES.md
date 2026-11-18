@@ -26,12 +26,12 @@ Live Herdr files are under `~/.config/herdr-app/`:
 | `mods/weather` | right panel | Den Bosch and Eindhoven. Rain from Buienradar's radar (2 hours, 5-minute bars), temperature from Open-Meteo. Marks the current network as home; shares `my-work.place` and `weather.sky`. |
 | `mods/trains` | right panel | NS trains home from Den Bosch, disruptions on the route, one-day other destination, journeys for calendar appointments. Shows 15:00 to 18:30, not at home. Key in `~/.config/my-work/ns-key` (never print it, never copy it into this folder). |
 | `mods/agenda` | right panel, bottom | Today's meetings with room and Join link. |
-| `mods/crew` | above the terminals | The mountain: every agent is a skier (hiker from April to October). Real sky, sun, clouds and rain; a clock top left. |
+| `mods/crew` | above the terminals | The mountain: every agent is a skier (hiker from April to October). Real sky, sun, clouds and rain; a clock top left. An agent's running sub-agents are small figures in its colour right behind it (up to 4, then "+n"): Claude Code's from shared `over9k.subs`, Herdr's own from `terminals()` with a `parent`. |
 | `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; offers the brief after Morning start ran by itself; also runs the theme switch and the daily backup. |
 | `mods/korok` | floating in the sidebar | Cheers when a ticket is done or a PR is merged. |
 | `mods/dev-servers` | sidebar | One light per dev stack (Platform :3000, AIS :4000), start/stop, links to the staging and production remote shells. Also does Morning start: fast-forwards master in `~/floryn` and `~/ais` (only a checkout on master without changes to tracked files), then starts the stacks that are not running. Runs from the "Morning start" row, from `dev-servers.morning`, and by itself on a working day from 06:00 the first time an agent is working. Shares its steps as `morning`. |
 | `mods/morning` | dialog | The Morning start brief: the steps above, what changed since 17:00 on the last working day (my PRs merged, reviews asked of me by name, red CI on master or my open PRs), today's meetings and duty. Does no work itself. Sets `morning.seen`. |
-| `mods/over9k*` | sidebar, tabs, usage | Third-party, with small edits (My work button, display-only push/pull, `ALWAYS_LISTED` keeps ais listed). |
+| `mods/over9k*` | sidebar, tabs, usage | Third-party, with small edits (My work button, display-only push/pull, `ALWAYS_LISTED` keeps ais listed, `over9k.subs` shares each agent's running subagents for the mountain). |
 
 Outside Herdr:
 
@@ -65,7 +65,6 @@ Outside Herdr:
 
 ## What Ruixin asked for and is not built yet
 
-2. **Sub-agents on the mountain** as small followers behind their parent figure.
 3. **A compact layout for the laptop screen**, where the strip and right panel take
    proportionally more room.
 4. **Shortcut training.** Ruixin: "keyboard shortcuts is a good idea but it is something
@@ -78,6 +77,9 @@ Outside Herdr:
 - Morning start running by itself at the first session of a day, and the sprite's offer of
   the brief afterwards (first chance: 19 November 2026). The brief with real rows (a merged
   PR, a review request, red CI): on 18 November GitHub had none, checked by hand.
+- Followers on the mountain behind a blocked, done or idle parent, more than four of them,
+  and Herdr's own sub-agents (`hc run`); seen on 18 November: two Claude Code subagents
+  behind a working parent, on the lift and on the way down.
 - `dev-servers.morning` only reaches the sidebar block while the sidebar is shown.
 - The rain was reworked several times; Ruixin has not yet confirmed it looks right. Snow
   has never run.
