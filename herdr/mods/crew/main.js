@@ -154,6 +154,8 @@ export default class Crew extends View {
     this.measure(cx);
     // One step of everybody's lap; the figures glide to their next spot by themselves.
     cx.timer.every(STEP, (cx) => { this.tick += 1; this.step(); if (this.tick % 3 === 0) this.measure(cx); cx.notify(); });
+    // The clock shows seconds, so it is drawn again every second.
+    cx.timer.every(1000, (cx) => cx.notify());
   }
 
   // Everybody one step on. A working agent walks to the station, rides up, comes
@@ -283,7 +285,9 @@ export default class Crew extends View {
       .children(falling)
       // The clock: the time large, the day under it.
       .child(v_flex().absolute().left(16).top(8).text_color("#f4f7f8")
-        .child(div().text_size(28).font_semibold().child(now.toTimeString().slice(0, 5)))
+        .child(h_flex().items_end().gap(3)
+          .child(div().text_size(28).font_semibold().child(now.toTimeString().slice(0, 5)))
+          .child(div().w(24).pb(4).text_size(15).opacity(0.75).child(now.toTimeString().slice(6, 8))))
         .child(div().text_size(11).opacity(0.8).child(`${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]}`)))
       .children(figures)
       .when(!list.length, (el) => el.child(div().absolute().left(560).top(VALLEY - 16).text_size(11).text_color(t.dim).child("Nobody on the mountain: start an agent and it takes the lift.")));
