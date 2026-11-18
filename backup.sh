@@ -8,7 +8,7 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 herdr="$HOME/.config/herdr-app"
-mods="my-work agenda forest-sprite korok dev-servers support-duty weather trains crew"
+mods="my-work agenda forest-sprite korok dev-servers morning support-duty weather trains crew"
 
 if [ "${1:-}" = restore ]; then
   for m in $mods; do mkdir -p "$herdr/mods/$m" && rsync -a --delete "$here/herdr/mods/$m/" "$herdr/mods/$m/"; done

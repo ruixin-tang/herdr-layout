@@ -1,6 +1,6 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { exec, theme, home, run, spaces, checking, shared, setShared, nextCommand, openOverlay } from "herdr";
+import { exec, theme, home, run, spaces, agents, checking, shared, setShared, nextCommand } from "herdr";
 
 // The local dev stacks, in the sidebar: one row per repo with one light (its
 // Rails port answers; `mise start` brings the rest), and its `mise start` kept in a Herdr terminal without a tab (named, so it is
@@ -8,29 +8,52 @@ import { exec, theme, home, run, spaces, checking, shared, setShared, nextComman
 // A stack started outside Herdr still lights up, it just has no log here.
 // "stg" and "prod" open that repo's remote shell (my `rs` and `rp`) in a new tab;
 // prod asks for a second click.
-// On top, "Morning start" opens the `morning` dialog, which pulls master, has this
-// mod start both stacks ("dev-servers.start-all") and shows what changed overnight.
+// On top, "Morning start": fast-forwards master in both repos, starts the stacks that are
+// not running, and opens the `morning` dialog with what changed overnight. It also runs by
+// itself at my first session of a working day; the forest sprite then offers the brief.
 const STACKS = [
   { key: "floryn", label: "Platform", folder: "floryn", ports: [["Rails", 3000]] },
   { key: "ais", label: "AIS", folder: "ais", ports: [["Rails", 4000]] },
 ];
 const name = (s) => `dev-${s.key}`;
 const REMOTES = [["stg", "staging"], ["prod", "production"]];
-const MORNING = { mod: "morning", kind: "dialog", width: 560, height: 600 };
+// Prints one line: "ok <new commits>", or why the checkout was left alone. Only a checkout
+// on master without changes to tracked files is touched, and only fast-forward.
+const PULL = `cd "$1" 2>/dev/null || { echo missing; exit; }
+b=$(git symbolic-ref --short -q HEAD) || b="no branch"
+[ "$b" = master ] || { echo "branch $b"; exit; }
+[ -z "$(git status --porcelain --untracked-files=no)" ] || { echo dirty; exit; }
+before=$(git rev-parse HEAD)
+git fetch -q origin master 2>/dev/null || { echo fetch; exit; }
+git merge -q --ff-only FETCH_HEAD >/dev/null 2>&1 || { echo diverged; exit; }
+echo "ok $(git rev-list --count "$before"..HEAD)"`;
+const LEFT = { missing: "no checkout here", dirty: "left alone: uncommitted changes", fetch: "could not fetch from GitHub", diverged: "left alone: master has commits of its own" };
 // One line per stack: its terminal's address when live ("-" if none), then 1/0 per port.
 const PROBE = STACKS.map((s) => `printf '%s' "$(hc get ${name(s)} 2>/dev/null | jq -r 'select(.state == "live") | .address' 2>/dev/null | grep . || echo -)"; ${s.ports.map(([, p]) => `nc -z -G 1 127.0.0.1 ${p} >/dev/null 2>&1 && printf ' 1' || printf ' 0'`).join("; ")}; echo`).join("; ");
+
+// "Overnight" starts when I stopped: 17:00 on the last working day, or my last
+// Morning start when that is longer ago (a holiday, a sick day).
+function stoppedAt(last) {
+  const d = new Date();
+  do d.setDate(d.getDate() - 1); while (d.getDay() % 6 === 0);
+  d.setHours(17, 0, 0, 0);
+  const dayStart = new Date(d).setHours(0, 0, 0, 0);
+  return last && last < dayStart ? Math.max(last, Date.now() - 14 * 86400000) : d.getTime();
+}
 
 export default class DevServers extends View {
   init(_props, cx) {
     this.state = {};
     if (checking()) return;
     this.probe(cx);
-    cx.timer.every(10000, (cx) => this.probe(cx));
-    // "dev-servers.start-all" (Morning start, or a key): starts every stack that is not running.
+    cx.timer.every(10000, (cx) => { this.probe(cx); this.auto(cx); });
+    // "dev-servers.start-all" (a key): starts every stack that is not running.
+    // "dev-servers.morning" (the dialog's "Run again", or a key): Morning start.
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
-        if (c === "start-all") this.startAll(cx);
+        if (c === "start-all") cx.spawn(async (cx) => { await this.startAll(); cx.notify(); });
+        if (c === "morning") this.morning(cx);
         cx.notify();
       }
     });
@@ -51,16 +74,47 @@ export default class DevServers extends View {
     cx.spawn(async (cx) => { await this.look(); cx.notify(); });
   }
 
-  startAll(cx) {
+  async startAll() {
+    await this.look();
+    for (const s of STACKS) {
+      const st = this.state[s.key];
+      if (!st?.terminal && !st?.up.some(Boolean)) await exec("hc", this.argv(s)).catch(() => null);
+    }
+    await this.look();
+  }
+
+  // Morning start. master first, so the stacks start on the new code. Each step is shared
+  // as "morning" ({ day, since, at, auto, pulled, started }) for the dialog and the sprite.
+  morning(cx, auto = false) {
+    if (this.busy) return;
+    this.busy = true;
+    const day = new Date().toDateString(), last = shared("morning");
+    const m = { day, since: last?.day === day ? last.since : stoppedAt(last?.at), at: Date.now(), auto, pulled: {}, started: false };
+    const share = () => setShared("morning", JSON.parse(JSON.stringify(m)));
+    share();
     cx.spawn(async (cx) => {
-      await this.look();
       for (const s of STACKS) {
-        const st = this.state[s.key];
-        if (!st?.terminal && !st?.up.some(Boolean)) await exec("hc", this.argv(s)).catch(() => null);
+        const r = await exec("sh", ["-c", PULL, "sh", `${home()}/${s.folder}`], { timeout: 120000 }).catch(() => null);
+        const [word, ...rest] = (r?.stdout ?? "").trim().split(" ");
+        const n = Number(rest[0]);
+        m.pulled[s.key] = word === "ok" ? { ok: true, text: n ? `${n} new commit${n > 1 ? "s" : ""}` : "already up to date" }
+          : word === "branch" ? { text: `left alone: on ${rest.join(" ")}` }
+          : { text: LEFT[word] ?? "git did not answer", failed: word === "fetch" || !LEFT[word] };
+        share();
       }
-      await this.look();
+      await this.startAll();
+      m.started = true;
+      share();
+      this.busy = false;
       cx.notify();
     });
+  }
+
+  // By itself: on a working day from 06:00, the first time one of my agents is working.
+  auto(cx) {
+    const now = new Date();
+    if (now.getDay() % 6 === 0 || now.getHours() < 6 || shared("morning")?.day === now.toDateString()) return;
+    if (agents().some((a) => a.status === "working")) this.morning(cx, true);
   }
 
   argv(s) { return ["run", "--bg", "--no-parent", "--name", name(s), "--cwd", `${home()}/${s.folder}`, "--", "zsh", "-lic", "mise start"]; }
@@ -121,7 +175,8 @@ export default class DevServers extends View {
     const t = theme(), morning = shared("morning"), done = morning?.day === new Date().toDateString();
     return v_flex().id("dev-servers").size_full().pt(4).border_t(1).border_color(t.border).bg(t.chrome).text_size(12.5)
       .child(h_flex().h(24).flex_none().px(6).gap(6).items_center()
-        .child(this.link("morning", "Morning start", done ? t.muted : t.accent, t, () => { openOverlay(MORNING); }))
+        // Once done today, the click only shows the brief again.
+        .child(this.link("morning", "Morning start", done ? t.muted : t.accent, t, (_e, cx) => { if (!done) this.morning(cx); run("mod.open", { name: "morning" }); }))
         .child(div().flex_1())
         .when(done, (el) => el.child(div().pr(4).text_size(10.5).text_color(t.dim).child(`done ${new Date(morning.at).toTimeString().slice(0, 5)}`))))
       .children(STACKS.map((s) => this.row(s, t)));

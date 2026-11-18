@@ -27,9 +27,10 @@ Live Herdr files are under `~/.config/herdr-app/`:
 | `mods/trains` | right panel | NS trains home from Den Bosch, disruptions on the route, one-day other destination, journeys for calendar appointments. Shows 15:00 to 18:30, not at home. Key in `~/.config/my-work/ns-key` (never print it, never copy it into this folder). |
 | `mods/agenda` | right panel, bottom | Today's meetings with room and Join link. |
 | `mods/crew` | above the terminals | The mountain: every agent is a skier (hiker from April to October). Real sky, sun, clouds and rain; a clock top left. |
-| `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; also runs the theme switch and the daily backup. |
+| `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; offers the brief after Morning start ran by itself; also runs the theme switch and the daily backup. |
 | `mods/korok` | floating in the sidebar | Cheers when a ticket is done or a PR is merged. |
-| `mods/dev-servers` | sidebar | One light per dev stack (Platform :3000, AIS :4000), start/stop, links to the staging and production remote shells. |
+| `mods/dev-servers` | sidebar | One light per dev stack (Platform :3000, AIS :4000), start/stop, links to the staging and production remote shells. Also does Morning start: fast-forwards master in `~/floryn` and `~/ais` (only a checkout on master without changes to tracked files), then starts the stacks that are not running. Runs from the "Morning start" row, from `dev-servers.morning`, and by itself on a working day from 06:00 the first time an agent is working. Shares its steps as `morning`. |
+| `mods/morning` | dialog | The Morning start brief: the steps above, what changed since 17:00 on the last working day (my PRs merged, reviews asked of me by name, red CI on master or my open PRs), today's meetings and duty. Does no work itself. Sets `morning.seen`. |
 | `mods/over9k*` | sidebar, tabs, usage | Third-party, with small edits (My work button, display-only push/pull, `ALWAYS_LISTED` keeps ais listed). |
 
 Outside Herdr:
@@ -64,9 +65,6 @@ Outside Herdr:
 
 ## What Ruixin asked for and is not built yet
 
-1. **Morning start.** One button (or automatic at the first session of the day): start
-   both dev stacks, pull master, and show a short brief of what changed overnight (PRs
-   merged, reviews requested, CI gone red, today's meetings and duty).
 2. **Sub-agents on the mountain** as small followers behind their parent figure.
 3. **A compact layout for the laptop screen**, where the strip and right panel take
    proportionally more room.
@@ -77,6 +75,10 @@ Outside Herdr:
 
 ## Built but never seen working
 
+- Morning start running by itself at the first session of a day, and the sprite's offer of
+  the brief afterwards (first chance: 19 November 2026). The brief with real rows (a merged
+  PR, a review request, red CI): on 18 November GitHub had none, checked by hand.
+- `dev-servers.morning` only reaches the sidebar block while the sidebar is shown.
 - The rain was reworked several times; Ruixin has not yet confirmed it looks right. Snow
   has never run.
 - A finished agent heading straight down, a blocked one stopping in place, boarding on foot.

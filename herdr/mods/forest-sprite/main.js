@@ -5,6 +5,7 @@ import { agents, theme, run, shared, placement, readTextFile, exec, home, appHom
 // A small forest sprite that floats over the window and follows the work:
 //   an agent is blocked      -> startled, an orange "!"; a click goes to that agent
 //   a meeting starts soon    -> says which and when; a click joins it (or just quiets it)
+//   Morning start ran        -> once a day: says so; a click opens the brief
 //   my train home is late    -> says which; a click quiets it
 //   time to go home          -> once a day: when to get up for which train, and the rain; a click quiets it
 //   new "Requires my action" -> holds up the count; a click opens My work
@@ -79,6 +80,10 @@ export default class ForestSprite extends View {
         go: () => { this.quiet = `${meet.title}@${meet.start}`; localStorage.setItem("quiet", this.quiet); if (meet.url) exec("open", [meet.url]); } };
     }
     if (blocked) return { art: "alert", bubble: "!", color: "blocked", tip: blocked.title, bob: 500, go: () => run("pane.focus", { pane: blocked.pane }) };
+    // Morning start ran by itself (the dev-servers mod, at my first session): a click opens its brief.
+    const today = new Date().toDateString(), morning = shared("morning");
+    if (morning?.day === today && morning.auto && shared("morning.seen") !== today)
+      return { art: "happy", bubble: "AM", color: "accent", say: "Master is pulled and the stacks are starting. Your brief is ready.", tip: "Click for the brief", bob: 900, wide: true, go: () => run("mod.open", { name: "morning" }) };
     // My next train home is late or cancelled (the trains mod says so); a click quiets that one.
     const train = shared("train.alert");
     const nudge = shared("train.nudge");
