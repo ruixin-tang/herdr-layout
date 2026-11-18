@@ -6,6 +6,7 @@ import { agents, theme, run, shared, placement, readTextFile, exec, home, appHom
 //   an agent is blocked      -> startled, an orange "!"; a click goes to that agent
 //   a meeting starts soon    -> says which and when; a click joins it (or just quiets it)
 //   my train home is late    -> says which; a click quiets it
+//   time to go home          -> once a day: when to get up for which train, and the rain; a click quiets it
 //   new "Requires my action" -> holds up the count; a click opens My work
 //   an agent finished unseen -> happy; a click goes to it
 //   agents are working       -> busy, bobbing
@@ -25,8 +26,17 @@ export default class ForestSprite extends View {
     this.meetings = []; this.quiet = localStorage.getItem("quiet") ?? "";
     if (!checking()) { this.loadMeetings(cx); cx.timer.every(60000, (cx) => this.loadMeetings(cx)); }
     if (!checking()) { this.sky(); cx.timer.every(300000, () => this.sky()); }
+    // Once a day, the first time Herdr is open: copy my workspace into ~/workspace-backup and commit it there.
+    if (!checking()) { this.backup(); cx.timer.every(3600000, () => this.backup()); }
     // The count already seen: only a rise wakes the sprite, not the standing pile.
     this.seen = Number(localStorage.getItem("seen") ?? -1);
+  }
+
+  backup() {
+    const day = new Date().toDateString();
+    if (localStorage.getItem("backup") === day) return;
+    localStorage.setItem("backup", day);
+    exec("sh", [`${home()}/workspace-backup/backup.sh`]).catch(() => null);
   }
 
   // Dawn, day, dusk, night: writes the theme and the gradient into the layout file when the phase
@@ -71,6 +81,9 @@ export default class ForestSprite extends View {
     if (blocked) return { art: "alert", bubble: "!", color: "blocked", tip: blocked.title, bob: 500, go: () => run("pane.focus", { pane: blocked.pane }) };
     // My next train home is late or cancelled (the trains mod says so); a click quiets that one.
     const train = shared("train.alert");
+    const nudge = shared("train.nudge");
+    if (!(train && train !== this.quietTrain) && nudge?.day === new Date().toDateString() && localStorage.getItem("nudged") !== nudge.day)
+      return { art: "happy", bubble: "go", color: "accent", say: nudge.text, tip: "Click to quiet", bob: 900, wide: true, go: () => { localStorage.setItem("nudged", nudge.day); } };
     if (train && train !== this.quietTrain) return { art: "alert", bubble: "NS", color: "blocked", say: train, tip: "Click to quiet", bob: 700, go: () => { this.quietTrain = train; } };
     if (todo > this.seen) return { art: "alert", bubble: `+${todo - this.seen}`, color: "blocked", tip: "New for you in My work", bob: 700, go: () => {
       this.see(todo);
@@ -93,7 +106,7 @@ export default class ForestSprite extends View {
     return v_flex().id("forest-sprite").p(4).gap(1).items_center().tooltip(m.tip)
       .when(Boolean(m.go), (el) => el.cursor_pointer())
       .on_click((_e, cx) => { if (m.go) { m.go(); cx.notify(); } })
-      .when(Boolean(m.say), (el) => el.child(div().max_w(180).px(6).py(2).rounded(6).bg(t.raised).text_size(11).text_color(t.foreground).truncate().child(m.say)))
+      .when(Boolean(m.say), (el) => el.child(div().max_w(m.wide ? 236 : 180).px(6).py(2).rounded(6).bg(t.raised).text_size(11).text_color(t.foreground).map((el) => (m.wide ? el.whitespace_normal() : el.truncate())).child(m.say)))
       .child(h_flex().w(56).map((el) => (right ? el.justify_start() : el.justify_end())).child(bubble))
       .child(div().relative().flex_none().when(m.bob > 0, (el) => el.loop("top", { from: 0, to: -4, period: m.bob }))
         .child(image(`${ART}/${m.art}.svg`).w(56).h(56)));

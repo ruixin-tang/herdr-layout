@@ -21,6 +21,8 @@ import { exec, readTextFile, theme, home, run, shared, setShared, checking } fro
 // And not at all at home (the weather mod knows, shared "my-work.place").
 // From ALERT_FROM o'clock a disruption, or a late or cancelled next train, goes
 // to the forest sprite through shared "train.alert".
+// Once a day at NUDGE_AT, on the way home, the sprite also gets the plan: when to
+// get up for the next train I can reach, and the rain outlook (shared "train.nudge").
 const FROM = "HT", HOME = [["EHS", "Strijp-S"], ["EHV", "Centraal"]];
 const SHOWN = 4, LATE = 5, SHOW_FROM = "15:00", SHOW_UNTIL = "18:30", ALERT_FROM = 16;
 // The stations on the way home: a disruption counts when it names two or more of them.
@@ -31,6 +33,7 @@ const MEETINGS = `${home()}/.cache/my-work/meetings.json`;
 const AHEAD = 4, EARLY = 10 * 60000;
 // Packing up and walking to the station: a train leaving sooner than this is out of reach.
 const WALK = 15 * 60000;
+const NUDGE_AT = "17:15";
 const START = { home: ["EHV", "Eindhoven"], away: [FROM, "Den Bosch"] };
 const API = "https://gateway.apiportal.ns.nl/reisinformatie-api/api";
 // The key is read by the shell ($1 is its file), never by this script.
@@ -132,6 +135,12 @@ export default class Trains extends View {
         const alert = !late ? null : next && (next.cancelled || next.late >= LATE) ? `${clock(next.planned)} to ${next.to} ${next.cancelled ? "is cancelled" : `+${next.late} min`}`
           : this.troubles.length ? `${this.troubles[0].title}: ${this.troubles[0].does}` : null;
         if ((shared("train.alert") ?? null) !== alert) setShared("train.alert", alert);
+        // The plan for going home, once: the first train I can still reach from my desk.
+        const hhmm = new Date().toTimeString().slice(0, 5), reach = this.trains.find((x) => !x.cancelled && x.leaves - now >= WALK);
+        if (!other && hhmm >= NUDGE_AT && reach && shared("train.nudge")?.day !== today()) {
+          const rain = shared("weather.sky")?.outlook;
+          setShared("train.nudge", { day: today(), text: `Leave at ${clock(reach.leaves - WALK)} for the ${clock(reach.planned)} to ${reach.to}${reach.late > 0 ? ` (+${reach.late})` : ""}${rain ? ` · ${rain}` : ""}` });
+        }
       } catch (e) { this.failed = String(e.message ?? e).slice(0, 80); }
       this.fit();
       cx.notify();
