@@ -254,13 +254,23 @@ export default class Crew extends View {
       return this.figure(a, "rest", BENCHES[0] + i * gap, VALLEY - 48 + 4, t, { size: 48, dim: true, drop: (i % 2) * 12 });
     });
 
-    // What falls from the sky right now: streaks of rain, or flakes of snow; more of them when it pours.
-    const mm = s.sky?.mm ?? 0, drops = mm < 0.1 ? 0 : Math.round(Math.min(1, 0.35 + mm / 4) * (this.width / 26));
-    const falling = Array.from({ length: drops }, (_, i) => {
-      const x = (i * 7919 + 13) % this.width, y = (i * 104729) % (H - 40);
-      return s.sky.snow
-        ? div().absolute().left(x).top(y).size(3).rounded(2).bg("#f4f7f8").opacity(0.8).loop("top", { from: y, to: y + 16, period: 2600 + (i % 5) * 400, easing: "ease-in-out" })
-        : div().absolute().left(x).top(y).w(1).h(9).bg("#a9c7d6").opacity(0.55).loop("top", { from: y, to: y + 22, period: 320 + (i % 4) * 60, easing: "linear" });
+    // What falls from the sky right now, more of it when it pours. Every drop only ever
+    // goes down. It lives two steps: one waiting unseen at the top edge (it has to be
+    // inside the strip, or Herdr does not animate it), one falling through the strip,
+    // slanting with the wind, each starting at its own moment. Then a fresh one takes
+    // its place. Snow does the same, slowly.
+    const mm = s.sky?.mm ?? 0, snow = Boolean(s.sky?.snow), wet = mm >= 0.1;
+    const count = !wet ? 0 : Math.round(Math.min(1, 0.4 + mm / 4) * (this.width / (snow ? 16 : 6)));
+    const fall = snow ? 2800 : 1100;
+    const falling = Array.from({ length: count }, (_, i) => {
+      const life = Math.floor((this.tick + i) / 2), going = (this.tick + i) % 2 === 1;
+      // A new place and a new moment for every life, so the rain does not repeat itself.
+      const seed = (i * 7919 + life * 104729) >>> 0, x = seed % (this.width + 60), wait = snow ? 0 : seed % (STEP - fall);
+      const drift = snow ? ((seed % 3) - 1) * 18 : -30, long = 9 + (seed % 3) * 4;
+      return div().id(`fall-${i}-${life}`).absolute().left(going ? x + drift : x).top(going ? H + 20 : snow ? seed % 40 : 0).opacity(going ? (snow ? 0.85 : 0.3 + (seed % 3) * 0.1) : 0.02)
+        .transition("top", { duration: fall, delay: wait, easing: "linear" }).transition("left", { duration: fall, delay: wait, easing: "linear" })
+        .transition("opacity", { duration: 60, delay: wait })
+        .map((el) => (snow ? el.size(3 + (seed % 2)).rounded(2).bg("#f4f7f8") : el.w(1.5).h(long).rounded(1).bg("#cfe3ee")));
     });
     const now = new Date();
 

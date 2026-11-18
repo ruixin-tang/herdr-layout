@@ -13,9 +13,14 @@ const PR_FIELDS = "--json=number,title,url,isDraft,state,repository";
 const REPOS = ["floryn", "ais"];
 // A ticket without a PR starts in the platform; a PR in a repo I have no checkout of starts nowhere.
 // My open PRs with their CI state, and my PRs merged in the last days, in one call.
+// For the open ones also the branch, and each review thread's state and last comment (whose turn it is).
 const GQL = `query($open:String!,$merged:String!){
-  open:search(query:$open,type:ISSUE,first:50){nodes{... on PullRequest{url commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}
-  merged:search(query:$merged,type:ISSUE,first:20){nodes{... on PullRequest{url number title bodyText repository{name owner{login}} mergeCommit{oid} labels(first:10){nodes{name}}}}}}`;
+  viewer{login}
+  open:search(query:$open,type:ISSUE,first:50){nodes{... on PullRequest{url headRefName commits(last:1){nodes{commit{statusCheckRollup{state}}}}
+    reviewThreads(first:60){nodes{isResolved comments(last:1){nodes{url author{login}}}}}}}}
+  merged:search(query:$merged,type:ISSUE,first:20){nodes{... on PullRequest{url number title headRefName bodyText repository{name owner{login}} mergeCommit{oid} labels(first:10){nodes{name}}}}}}`;
+// Every worktree of both repos, as "path<tab>branch" lines.
+const TREES = REPOS.map((r) => `git -C "$HOME/${r}" worktree list --porcelain 2>/dev/null | awk '/^worktree /{p=$2} /^branch /{sub("refs/heads/","",$2); print p "\t" $2}'`).join("; ");
 const SHIPPED_DAYS = 3;
 const CI = { SUCCESS: ["ansi2", "CI passed"], FAILURE: ["ansi1", "CI failed"], ERROR: ["ansi1", "CI failed"], PENDING: ["ansi3", "CI running"], EXPECTED: ["ansi3", "CI running"] };
 // The last recap Claude Code printed in a terminal ("※ recap: ..." up to the next blank line).
@@ -55,7 +60,9 @@ function agentFor(item, list) {
 export default class MyWork extends View {
   init(_props, cx) {
     this.tab = "tickets"; this.tickets = []; this.ticketsAt = null; this.prs = []; this.prsAt = null; this.prsError = null;
-    this.folded = {}; this.ticketPrs = {}; this.ci = {}; this.recaps = []; this.recapAt = null;
+    this.folded = {}; this.ticketPrs = {}; this.ci = {};
+    // Per PR url: its branch and the review threads waiting for my answer; per branch: its worktree; per merged PR url: where it is.
+    this.pull = {}; this.trees = {}; this.shipped = {}; this.recaps = []; this.recapAt = null;
     // Merged PRs known to be on production, and the ones whose deploy instructions I ticked off.
     this.live = stored("live") ?? {}; this.deployDone = stored("deployDone") ?? [];
     if (checking()) return;
@@ -147,12 +154,22 @@ export default class MyWork extends View {
         const g = await exec("gh", ["api", "graphql", "-f", `query=${GQL}`, "-f", "open=is:pr is:open author:@me", "-f", `merged=is:pr is:merged author:@me merged:>=${since}`]);
         const data = g.code === 0 ? JSON.parse(g.stdout).data : { open: { nodes: [] }, merged: { nodes: [] } };
         this.ci = Object.fromEntries(data.open.nodes.map((n) => [n.url, n.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null]));
+        // A thread waits for me when it is open and someone else spoke last.
+        const me = data.viewer?.login;
+        this.pull = Object.fromEntries([...data.open.nodes, ...data.merged.nodes].map((n) => {
+          const waiting = (n.reviewThreads?.nodes ?? []).filter((th) => !th.isResolved && th.comments.nodes[0] && th.comments.nodes[0].author?.login !== me);
+          return [n.url, { branch: n.headRefName, waiting: waiting.length, first: waiting[0]?.comments.nodes[0].url ?? null }];
+        }));
+        const trees = await exec("sh", ["-c", TREES]).catch(() => null);
+        this.trees = Object.fromEntries((trees?.stdout ?? "").trim().split("\n").filter(Boolean).map((line) => line.split("\t").reverse()));
         const failed = (pr) => ["FAILURE", "ERROR"].includes(this.ci[pr.url]);
+        const asked = (pr) => this.pull[pr.url]?.waiting ?? 0;
         const merged = [];
         for (const pr of data.merged.nodes) {
           const live = await this.isLive(pr);
           const steps = /Deployment Instructions/i.test(pr.bodyText) || pr.labels.nodes.some((l) => l.name === "deploy instructions");
           const todo = live && steps && !this.deployDone.includes(pr.url);
+          this.shipped[pr.url] = live ? "on production" : "merged, not live yet";
           merged.push({ id: `${pr.repository.name}#${pr.number}`, keys: [String(pr.number)], url: pr.url, title: pr.title, merged: true, steps: todo,
             side: todo ? "action" : live ? "shipped" : "waiting",
             meta: todo ? "On production · do the deploy instructions" : live ? "On production" : steps ? "Merged · not on production yet · has deploy instructions" : "Merged · not on production yet" });
@@ -166,6 +183,7 @@ export default class MyWork extends View {
         this.prs = [
           ...review.map((pr) => has(direct, pr) ? row(pr, "action", "Review requested") : row(pr, "team", "Team review requested")),
           ...authored.map((pr) => failed(pr) ? row(pr, "action", pr.isDraft ? "Draft · CI failed" : "CI failed")
+            : asked(pr) ? row(pr, "action", `${asked(pr)} comment${asked(pr) > 1 ? "s" : ""} to answer`)
             : pr.isDraft ? row(pr, "action", "Draft") : has(changes, pr) ? row(pr, "action", "Changes requested")
             : has(approved, pr) ? row(pr, "action", "Approved") : row(pr, "waiting", "Awaiting review")),
           ...merged,
@@ -256,7 +274,14 @@ export default class MyWork extends View {
     const agent = item.merged ? null : agentFor(item, list);
     // Only a ticket or a PR to review is picked up; my own PRs are not.
     const pickable = (item.ticket || item.role === "reviewer") && repoOf(item) && !agent;
-    const ci = CI[this.ci[item.pr?.url ?? item.url]];
+    const prUrl = item.pr?.url ?? (item.ticket ? null : item.url);
+    const ci = CI[this.ci[prUrl]], pull = this.pull[prUrl], tree = pull?.branch ? this.trees[pull.branch] : null, live = this.shipped[prUrl];
+    const trail = Boolean(item.pr || ci || pull?.branch);
+    // Its agent, or the way to start one.
+    const hand = agent
+      ? this.link(`agent-${item.url}`, `→ ${agent.title.replace(/^[^A-Za-z0-9]+/, "")}`, t[agent.status] ?? t.muted, t, () => { run("pane.focus", { pane: agent.pane }); })
+      : pickable ? this.link(`pick-${item.url}`, this.armed === item.id ? `Click again: ${item.role === "reviewer" ? "review" : "pick up"} in ${repoOf(item)}` : item.role === "reviewer" ? "Review" : "Pick up", this.armed === item.id ? t.blocked : t.muted, t, (_e, cx) => this.pickUp(item, cx))
+      : div();
     return v_flex().flex_none().px(8).py(5).gap(2).rounded(8).hover((s) => s.bg(t.hover))
       .child(h_flex().gap(8).items_center()
         .child(div().size(14).flex_none().rounded(7).border(1.5).border_color(c))
@@ -265,16 +290,24 @@ export default class MyWork extends View {
           .on_click((_e, cx) => { if (!item.ticket) exec("open", [item.url]); else if (agent) run("pane.focus", { pane: agent.pane }); else this.pickUp(item, cx); })))
       .child(h_flex().pl(18).gap(2).items_center().text_size(11).text_color(t.dim)
         .child(this.link(`id-${item.url}`, item.id, t.dim, t, () => { exec("open", [item.url]); }))
-        .child(div().flex_none().child(`· ${item.meta}`))
-        .when(Boolean(item.pr), (el) => el.child(this.link(`pr-${item.url}`, item.pr.note ? `${item.pr.id} ${item.pr.note}` : item.pr.id, t.accent, t, () => { exec("open", [item.pr.url]); })))
-        .when(Boolean(ci), (el) => el.child(div().id(`ci-${item.url}`).ml(4).size(7).flex_none().rounded(4).bg(t[ci[0]]).tooltip(ci[1])))
-        .child(div().flex_1())
+        .child(div().flex_1().min_w(0).truncate().child(`· ${item.meta}`))
         .when(Boolean(item.steps), (el) => el.child(this.link(`steps-${item.url}`, "Done", t.muted, t, (_e, cx) => {
           this.deployDone = [...this.deployDone, item.url].slice(-50); localStorage.setItem("deployDone", JSON.stringify(this.deployDone));
           item.steps = false; item.side = "shipped"; item.meta = "On production"; this.publish(); cx.notify();
         })))
-        .when(Boolean(pickable), (el) => el.child(this.link(`pick-${item.url}`, this.armed === item.id ? `Click again: ${item.role === "reviewer" ? "review" : "pick up"} in ${repoOf(item)}` : item.role === "reviewer" ? "Review" : "Pick up", this.armed === item.id ? t.blocked : t.muted, t, (_e, cx) => this.pickUp(item, cx))))
-        .when(Boolean(agent), (el) => el.child(this.link(`agent-${item.url}`, `→ ${agent.title.replace(/^[^A-Za-z0-9]+/, "")}`, t[agent.status] ?? t.muted, t, () => { run("pane.focus", { pane: agent.pane }); }))));
+        .when(!trail, (el) => el.child(hand)))
+      // The trail: its PR with CI, the comments waiting for me, its branch (a click opens a tab in its worktree), whether it is live, its agent.
+      .when(trail, (el) => el.child(h_flex().pl(18).gap(2).items_center().text_size(11).text_color(t.dim)
+        .when(Boolean(item.pr), (row) => row.child(this.link(`pr-${item.url}`, item.pr.note ? `${item.pr.id} ${item.pr.note}` : item.pr.id, t.accent, t, () => { exec("open", [item.pr.url]); })))
+        .when(Boolean(ci), (row) => row.child(div().id(`ci-${item.url}`).mx(3).size(7).flex_none().rounded(4).bg(t[ci[0]]).tooltip(ci[1])))
+        .when(Boolean(pull?.waiting), (row) => row.child(this.link(`asked-${item.url}`, `${pull.waiting} to answer`, t.blocked, t, () => { exec("open", [pull.first]); })))
+        .when(Boolean(pull?.branch), (row) => row.child(div().id(`branch-${item.url}`).px(4).rounded(4).min_w(0).max_w(120).truncate().text_color(tree ? t.muted : t.dim)
+          .tooltip(tree ? `${pull.branch}: click for a tab in ${tree}` : `${pull.branch}: no worktree on this Mac`)
+          .when(Boolean(tree), (b) => b.cursor_pointer().hover((h) => h.bg(t.hover).text_color(t.foreground)).on_click(() => { run("tab.new", { name: pull.branch.slice(0, 40), folder: tree }); }))
+          .child(pull.branch)))
+        .when(Boolean(live) && Boolean(item.ticket), (row) => row.child(div().flex_none().px(4).text_color(live === "on production" ? t.ansi2 : t.dim).child(live)))
+        .child(div().flex_1())
+        .child(hand)));
   }
 
   sections(items, t) {
