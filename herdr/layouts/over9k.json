@@ -271,12 +271,12 @@
   ],
   "background": {
     "gradient": [
-      "#4a2a1c",
-      "#0c0a12"
+      "#3b2c44",
+      "#0a1118"
     ],
     "angle": 165
   },
-  "theme": "sheikah-dusk",
+  "theme": "sheikah-dawn",
   "terminal_padding": [
     14,
     12
