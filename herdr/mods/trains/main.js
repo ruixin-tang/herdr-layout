@@ -105,7 +105,9 @@ export default class Trains extends View {
       const [from, fromName] = START[shared("my-work.place") === "home" ? "home" : "away"];
       const trip = await this.appointment();
       this.trip = trip && trip.code !== from ? { ...trip, from: fromName } : null;
-      if (!this.fit()) return;
+      // Hidden (at home, or outside its hours): the sprite has nothing to say about trains either.
+      // Without this the last alert stayed until the block next showed, so through the next day at home.
+      if (!this.fit()) { if (shared("train.alert")) setShared("train.alert", null); return; }
       const other = this.trip ?? this.elsewhere(), to = other ? [[other.code, other.name]] : HOME;
       // For an appointment: the journeys that arrive a little before it starts.
       const by = this.trip ? `&dateTime=${new Date(this.trip.by).toISOString().slice(0, 19)}Z&searchForArrival=true` : "";

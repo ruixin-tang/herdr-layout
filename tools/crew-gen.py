@@ -110,6 +110,84 @@ def ski_extra(c, state):
   <path d="M44.5 {y-.5} q-1.4 -2 0 -3.6 M47.5 {y-.5} q-1.4 -2 0 -3.6" stroke="#9fb3b3" stroke-width="1" fill="none" stroke-linecap="round" opacity=".8"/>{hands([(45, y+8)], c, 3)}'''
 
 
+# What an idle skier holds: the mug's colour, the drink's, and what tells it apart from above.
+DRINKS = {
+    "choco": ("#d8574a", "#6b3f2a", '<path d="M42.6 35.6 q.4 -3.4 3 -2.6 q1.2 -2.2 3 -.4 q2.6 -.6 2.8 3z" fill="#fbf7ee"/>'),
+    "tea": ("#f4f1e6", "#c98a3a", '<path d="M44 35.5 V43" stroke="#8a9a9a" stroke-width=".8"/><rect x="42.2" y="42" width="3.6" height="3.6" rx=".6" fill="#9be08e"/>'),
+    "coffee": ("#f4f1e6", "#3a2418", '<rect x="41" y="40" width="11" height="2.6" fill="#8a5a3a"/>'),
+}
+
+
+def ski_rest(c, drink):
+    """Idle: on the café bench with a large mug of something hot, held in both hands."""
+    y = 36
+    mug, liquid, extra = DRINKS[drink]
+    return SVG % f'''  <ellipse cx="32" cy="61.5" rx="20" ry="2" fill="#000" opacity=".22"/>
+  <rect x="9" y="49" width="46" height="4" rx="1.5" fill="#6b4a36"/><path d="M14 53 v8 M50 53 v8" stroke="#4a352b" stroke-width="3" stroke-linecap="round"/>
+  {skier(c, "done", y)}{feet([(25, 53), (39, 53)], c)}
+  <path d="M52 38.5 q4.6 .8 0 5.6" stroke="{mug}" stroke-width="1.8" fill="none"/><rect x="41" y="35" width="11" height="11" rx="2.2" fill="{mug}"/>
+  <ellipse cx="46.5" cy="36.2" rx="4.4" ry="1.5" fill="{liquid}"/>{extra}
+  {hands([(40.5, y+8)], c, 3)}'''
+
+
+def ski_subs(c, pose):
+    """A skier whose sub-agents are running: "pack" in the chair with the folded wing on its back,
+    "fly" hanging under the wing (the wing itself is ski-<colour>-wing.svg, drawn above it)."""
+    d = dark(c, .6)
+    if pose == "pack":
+        pack = f'<rect x="40" y="22" width="14" height="19" rx="5" fill="{d}"/><rect x="44" y="18.5" width="6" height="5" rx="2.4" fill="{d}"/><path d="M41 29 h13 M41 34 h13" stroke="{c}" stroke-width="1.6"/>'
+        return SVG % f'''  <path d="M32 0 V12" stroke="#9fb3b3" stroke-width="2" stroke-linecap="round"/>
+  <path d="M15 46 V26 a17 17 0 0 1 34 0 V46" stroke="#4a6470" stroke-width="2.4" fill="none"/>
+  {pack}{skier(c, "working", 31)}
+  <rect x="12" y="43" width="40" height="3.4" rx="1.7" fill="#4a6470"/>{feet([(26, 49), (38, 49)], c)}{skis(53)}{hands([(18, 37), (46, 37)], c, 3.2)}'''
+    y = 35  # in the air: no shadow, hands up on the lines, the skis hanging
+    return SVG % f'''  {feet([(26, y+15), (38, y+15)], c)}{skier(c, "working", y)}{skis(54)}{hands([(18, y-9), (46, y-9)], c, 3.2)}'''
+
+
+def board(c, y, tilt=0):
+    """A snowboard under the feet, cream with a stripe in the suit's colour."""
+    return (f'<g transform="rotate({tilt} 32 {y+2})"><rect x="8" y="{y}" width="48" height="4.6" rx="2.3" fill="#f4f1e6"/>'
+            f'<rect x="20" y="{y}" width="24" height="4.6" fill="{dark(c, .6)}"/><rect x="29" y="{y}" width="6" height="4.6" fill="{c}"/></g>')
+
+
+def boarder(c, pose):
+    """The same skier on a snowboard, for every pose that shows skis (never with the wing)."""
+    if pose == "working":  # on the chairlift, the board hanging from its feet
+        return SVG % f'''  <path d="M32 0 V12" stroke="#9fb3b3" stroke-width="2" stroke-linecap="round"/>
+  <path d="M15 46 V26 a17 17 0 0 1 34 0 V46" stroke="#4a6470" stroke-width="2.4" fill="none"/>
+  {skier(c, pose, 31)}
+  <rect x="12" y="43" width="40" height="3.4" rx="1.7" fill="#4a6470"/>{feet([(26, 49), (38, 49)], c)}{board(c, 52, -8)}{hands([(18, 37), (46, 37)], c, 3.2)}'''
+    if pose == "down":  # riding left, looking where it goes, arms out
+        y = 35; d = dark(c, .6)
+        return SVG % f'''  <ellipse cx="32" cy="61.5" rx="19" ry="2" fill="#000" opacity=".2"/>
+  {feet([(24, y+16), (40, y+14)], c)}{blob(c, y, 13)}
+  <path d="M19.6 {y-4} a12.6 12.6 0 0 1 24.8 0z" fill="{d}"/><circle cx="36" cy="{y-14}" r="2.6" fill="#f4f1e6"/>
+  <rect x="19" y="{y-5}" width="26" height="2.6" fill="#16323b"/><rect x="18" y="{y-6.5}" width="18" height="9.5" rx="4.6" fill="#16323b"/><rect x="19.4" y="{y-5.2}" width="15.2" height="6.9" rx="3.4" fill="#ffb86b" opacity=".9"/>
+  <circle cx="24" cy="{y-1.6}" r="1.5" fill="#3a1d08"/><circle cx="30.5" cy="{y-1.6}" r="1.5" fill="#3a1d08"/>
+  {board(c, 53, -5)}{hands([(14, y+3), (50, y-3)], c, 3.2)}'''
+    if pose == "stuck":  # sitting in the snow, the board still on
+        y = 40
+        return SVG % f'''  <ellipse cx="32" cy="61.5" rx="21" ry="2" fill="#000" opacity=".22"/>
+  {skier(c, "blocked", y)}{feet([(24, 55), (40, 55)], c)}{board(c, 56)}{hands([(15, y+8), (49, y+8)], c, 3.2)}'''
+    y = 35
+    if pose == "carve":  # on foot, standing on the board
+        return SVG % f'''  <ellipse cx="32" cy="61.5" rx="17" ry="2" fill="#000" opacity=".22"/>
+  {feet([(26, y+15), (38, y+15)], c)}{skier(c, "working", y)}{board(c, 53)}{hands([(15, y-1), (49, y-1)], c, 3.2)}'''
+    flag = '<path d="M57 18 V58" stroke="#d9d4c0" stroke-width="1.6" stroke-linecap="round"/><path d="M57 19 l-10 3.5 10 3.5z" fill="#ff9a3c"/>' if pose == "blocked" else ''
+    return SVG % f'''  <ellipse cx="32" cy="61" rx="17" ry="2.2" fill="#000" opacity=".28"/>{flag}
+  {feet([(26, y+15), (38, y+15)], c)}{skier(c, pose, y)}{board(c, 53)}{hands([(17, y-9), (47, y-9)], c, 3.2)}{star(11) if pose == "done" else ''}'''
+
+
+def wing(c):
+    """The paraglider over a flying skier, in its colour, at the figure's own scale:
+    its lines end at (42, 50) and (70, 50), where the hands of the "fly" pose are (18, 26) and (46, 26)."""
+    lines = ''.join(f'<path d="M{x} {y} L{70 if x > 56 else 42} 50" stroke="#dfe8ec" stroke-width="1" opacity=".85"/>' for x, y in [(8, 17), (30, 9), (82, 9), (104, 17)])
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 112 50" width="112" height="50">
+  {lines}<path d="M3 20 Q56 -14 109 20 Q56 4 3 20z" fill="{c}"/><path d="M3 20 Q56 4 109 20 Q56 10 3 20z" fill="{dark(c, .7)}"/>
+  <path d="M28 8.5 Q56 -3 84 8.5 Q56 2.5 28 8.5z" fill="#fff" opacity=".4"/>
+</svg>'''
+
+
 def hold(x, y, col, r=3.6):
     return f'<path d="M{x-r} {y} q{r*.2:.1f} -{r*1.2:.1f} {r} -{r} q{r*1.1:.1f} {r*.1:.1f} {r} {r} q-{r*.2:.1f} {r:.1f} -{r} {r} q-{r*.9:.1f} 0 -{r} -{r}z" fill="{col}"/>'
 
@@ -167,6 +245,17 @@ n = 0
 for name, c in COLORS.items():
     for st in ("carve", "rest"):
         open(f"{OUT}/ski-{name}-{st}.svg", "w").write(ski_extra(c, st))
+        n += 1
+    for pose in ("pack", "fly"):
+        open(f"{OUT}/ski-{name}-{pose}.svg", "w").write(ski_subs(c, pose))
+        n += 1
+    open(f"{OUT}/ski-{name}-wing.svg", "w").write(wing(c))
+    n += 1
+    for pose in ("working", "down", "stuck", "carve", "blocked", "done"):
+        open(f"{OUT}/ski-{name}-{pose}-board.svg", "w").write(boarder(c, pose))
+        n += 1
+    for drink in DRINKS:
+        open(f"{OUT}/ski-{name}-rest-{drink}.svg", "w").write(ski_rest(c, drink))
         n += 1
 for name, c in COLORS.items():
     for st in STATES:

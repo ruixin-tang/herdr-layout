@@ -173,7 +173,10 @@ export default class ForestSprite extends View {
     if (morning?.day === today && morning.auto && shared("morning.seen") !== today)
       return { art: "happy", bubble: "AM", color: "accent", say: "Master is pulled and the stacks are starting. Your brief is ready.", tip: "Click for the brief", bob: 900, wide: true, go: () => run("mod.open", { name: "morning" }) };
     // My next train home is late or cancelled (the trains mod says so); a click quiets that one.
-    const train = shared("train.alert");
+    // Only while the trains block shows: hidden (at home, outside its hours) it does not run,
+    // so what it last shared is old.
+    const find = (n, id) => n && (n.id === id ? n : (n.children ?? []).map((c) => find(c, id)).find(Boolean));
+    const trains = find(layout(), "trains"), train = trains && !trains.hidden ? shared("train.alert") : null;
     const nudge = shared("train.nudge");
     if (!(train && train !== this.quietTrain) && nudge?.day === new Date().toDateString() && localStorage.getItem("nudged") !== nudge.day)
       return { art: "happy", bubble: "go", color: "accent", say: nudge.text, tip: "Click to quiet", bob: 900, wide: true, go: () => { localStorage.setItem("nudged", nudge.day); } };
@@ -192,6 +195,9 @@ export default class ForestSprite extends View {
   render() {
     this.trainer.watch();
     const t = theme(), m = this.mood(), right = placement()?.edge === "right";
+    // What it says has to fit in the sidebar it floats over, whatever width that has now.
+    const find = (n, id) => n && (n.id === id ? n : (n.children ?? []).map((c) => find(c, id)).find(Boolean));
+    const room = Math.max(120, (find(layout(), "sidebar")?.size?.px ?? 268) - 36);
     const bubble = m.art === "sleep"
       ? div().h(16).text_size(11).text_color(t.dim).frames(["z", "zZ", "zZz", ""], 700)
       : div().h(16).min_w(16).px(4).flex().items_center().justify_center().rounded(8).text_size(10).font_semibold()
@@ -201,8 +207,8 @@ export default class ForestSprite extends View {
       .when(Boolean(m.go), (el) => el.cursor_pointer())
       .on_mouse_down_out(() => { this.trainer.press(); })
       .on_click((_e, cx) => { this.trainer.press(); if (m.go) { m.go(); cx.notify(); } })
-      .when(Boolean(m.say), (el) => el.child(div().max_w(m.wide ? 236 : 180).px(6).py(2).rounded(6).bg(t.raised).text_size(11).text_color(t.foreground).map((el) => (m.wide ? el.whitespace_normal() : el.truncate())).child(m.say)))
-      .child(h_flex().w(56).map((el) => (right ? el.justify_start() : el.justify_end())).child(bubble))
+      .when(Boolean(m.say), (el) => el.child(div().max_w(Math.min(m.wide ? 236 : 180, room)).px(6).py(2).rounded(6).bg(t.raised).text_size(11).text_color(t.foreground).map((el) => (m.wide ? el.whitespace_normal() : el.truncate())).child(m.say)))
+      .child(h_flex().min_w(56).map((el) => (right ? el.justify_start() : el.justify_end())).child(bubble))
       .child(div().relative().flex_none().when(m.bob > 0, (el) => el.loop("top", { from: 0, to: -4, period: m.bob }))
         .child(image(`${ART}/${m.art}.svg`).w(56).h(56)));
   }

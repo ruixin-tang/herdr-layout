@@ -26,7 +26,7 @@ Live Herdr files are under `~/.config/herdr-app/`:
 | `mods/weather` | right panel | Den Bosch and Eindhoven. Rain from Buienradar's radar (2 hours, 5-minute bars), temperature from Open-Meteo. Marks the current network as home; shares `my-work.place` and `weather.sky`. |
 | `mods/trains` | right panel | NS trains home from Den Bosch, disruptions on the route, one-day other destination, journeys for calendar appointments. Shows 15:00 to 18:30, not at home. Key in `~/.config/my-work/ns-key` (never print it, never copy it into this folder). |
 | `mods/agenda` | right panel, bottom | Today's meetings with room and Join link. |
-| `mods/crew` | above the terminals | The mountain: every agent is a skier (hiker from April to October). Real sky, sun, clouds and rain; a clock top left. An agent's running sub-agents are small figures in its colour right behind it (up to 4, then "+n"): Claude Code's from shared `over9k.subs`, Herdr's own from `terminals()` with a `parent`. |
+| `mods/crew` | above the terminals | The crew strip, a scene per time of year (since 19 November 2026): December to March the ski resort (`main.js`), April to June the valley, July and August the beach and harbour, September to November the orchard (`scenes.js`; the sky they share is `sky.js`). `herdr-app do crew.season` shows the next scene for a look ahead, round to the calendar's own (not kept over a reload). In the three new scenes: idle on the benches by the house with a drink, done and blocked waiting at the shipping bin / on the pier / at the market stall, working on a lap out and back (field and mine, then back with a sack; sailing to the buoy and back; picking up ladders, then back with a crate), sub-agents as chickens / seagulls / geese behind it. What follows describes the ski resort: every agent is a skier. Real sky, sun, clouds and rain; a clock top left. An agent's running sub-agents are small figures in its colour right behind it (up to 4, then "+n"): Claude Code's from shared `over9k.subs`, Herdr's own from `terminals()` with a `parent`. In the ski season (since 19 November 2026) there are no small figures: an agent with sub-agents running has a folded wing on its back in the chair (`ski-<colour>-pack.svg`) and flies down under a paraglider (`-fly.svg` with `-wing.svg` over it); a hover says how many. Half of the agents snowboard instead of ski (`-<pose>-board.svg`, by their terminal), never under the wing. Idle agents sit on the benches by the hut without names (a hover says who), each with a mug of hot chocolate, tea or coffee and a puff of steam (`ski-<colour>-rest-<drink>.svg`, since 19 November 2026; in summer the glass as before); above four they sit closer and get smaller (down to 30 px). |
 | `mods/forest-sprite` | floating in the sidebar | Pet that reacts to blocked agents, meetings, late trains, the go-home nudge; offers the brief after Morning start ran by itself; also runs the theme switch, the daily backup and the compact layout: a window narrower than 1800 px (the laptop screen) gets the strip at 160 px instead of 260, and the right panel at 312 instead of 368, shared as `compact`: the mountain draws itself smaller, and the weather (a line per place, no bars), trains (the next train I can catch) and agenda (what is on now or next) blocks make themselves one line each; a click on the line shows the whole block, its "less" link folds it again (not kept over a restart). `forest-sprite.compact` switches by hand. Shortcut training (`shortcuts.js`): when I change space or tab, open a tab, split or zoom by clicking, it shows the key for it for 8 seconds and how often I clicked today; done by key, a short cheer with the key. It tells the two apart by a mouse press in the 1.5 seconds before; keys are read from `keys.json`; counts in shared `shortcuts.today`. Going to an agent that needs me, opening My work and starting a stack by clicking are answered with my own keys. |
 | `mods/dutch` | dialog | The Dutch lesson. When the calendar's "Dutch" event starts, the sprite opens it nearly as large as the window: "Kijk nu" opens the NOS Journaal in Makkelijke Taal on NPO Start, 8 minutes later the day counts as done and the streak grows. Esc snoozes 5 minutes (the sprite opens it again), "Niet vandaag" asks twice and ends the streak. State in shared `dutch`. Ruixin asked for this to be harsh: "I tend to just SKIP it". |
 | `mods/korok` | floating in the sidebar | Cheers when a ticket is done or a PR is merged. |
@@ -43,7 +43,9 @@ Outside Herdr:
   sessions started afterwards.
 - `~/.claude/settings.json` also has over9k's status line (silenced with `>/dev/null`);
   it feeds the Claude usage rows in the sidebar.
-- `tools/crew-gen.py` and `tools/crew-resort.py` draw the figures. Usage:
+- `tools/crew-seasons.py <folder>` draws the figures of the valley, the beach and the orchard.
+- `tools/crew-gen.py` and `tools/crew-resort.py` draw the figures (`crew-gen.py <folder>` draws the
+  idle skiers with their mugs). Usage:
   `python3 tools/crew-resort.py ~/.config/herdr-app/mods/crew`. The mountain itself is
   drawn in `mods/crew/main.js` at the strip's width.
 
@@ -52,6 +54,10 @@ Outside Herdr:
 - After every edit: `herdr-app check <mod folder>` and `herdr-app status` (its `errors`).
 - `herdr-app shot <file.png>` saves the window. It catches animation frames, so a quick
   series of shots shows whether something moves.
+- A block that is hidden since Herdr started has never run: what it last put in shared state is old.
+  The sprite therefore ignores `train.alert` while the trains block is hidden (19 November 2026).
+- A picture swapped for another leaves its place empty for a frame: keep the old one underneath
+  (the mountain does, `scene.before`).
 - A new mod folder gets docked into the layout by Herdr unless `mod.json` with
   `{ "place": "none" }` exists before `main.js` is written.
 - Animate natively (`.loop`, `.transition`, `.frames`). An element outside the visible
@@ -70,8 +76,11 @@ Outside Herdr:
 
 ## What Ruixin asked for and is not built yet
 
-Nothing: the four items of 18 November 2026 are built. What is left is seeing them work
-(next section).
+- A Stardew Valley look (asked 19 November 2026; Ruixin is a fan). Original pixel art only, never the
+  game's own sprites or font. A mockup with two directions was shown (A: the ski resort as pixel art,
+  B: a valley with café, shipping bin, field, mine, chickens as sub-agents); Ruixin chose on 19 November 2026: winter is A (the ski resort as pixel art), spring is B (the valley); the calendar Ruixin set: December to March the ski resort (sub-agents there: no small figures; an agent that has any running comes down under a paraglider and carries the folded wing as a small backpack in its colour on the lift; how many does not matter to Ruixin), April to June the valley, July and August the beach and harbour, September to November the orchard harvest (working: picking apples up a ladder and carrying crates to the cart; idle: by a fire with a mug; done: at the market stall with a star; blocked: in the pumpkin patch with a "!"; sub-agents: geese or squirrels following). All built on 19 November 2026: winter's wing, backpack and snowboarders, the valley, the beach, the orchard and the calendar. The summer mountain with hikers ("alp") is still in `main.js` and its drawings are still there, but no month shows it. Mockups were shown in the mountain's own style, with the summer hikers standing in for the new poses.
+  Ruixin then asked to skip pixel art (19 November 2026): the scenes are drawn in the style the mountain has now.
+  The mockup's script is not kept.
 
 ## Built but never seen working
 
@@ -98,6 +107,10 @@ Nothing: the four items of 18 November 2026 are built. What is left is seeing th
 - `dev-servers.morning` only reaches the sidebar block while the sidebar is shown.
 - The rain was reworked several times; Ruixin has not yet confirmed it looks right. Snow
   has never run.
+- The wing and the backpack from real sub-agents: on 19 November 2026 they were seen with sub-agents faked in the code, and the snowboard with everybody forced onto one. Six idle agents on the benches were seen.
+- The valley, the beach and the orchard: seen on 19 November 2026 with one working agent, two done ones and five idle ones, and with sub-agents faked. Not seen: a blocked agent on its lap (sitting in the grass, adrift in its boat, on a pumpkin), rain, night, the compact layout, and the calendar changing scene by itself (first on 1 December 2026).
+- Small figures behind an agent had been broken since the compact layout came (a name clash in `figure()`); fixed 19 November 2026.
+- A figure sitting down on its bench in one go when it turns idle (its bench used to slide over with it; changed 19 November 2026, not seen since).
 - A finished agent heading straight down, a blocked one stopping in place, boarding on foot.
 - The go-home nudge (17:15), the sprite's train alerts, the trains block hiding at 18:30.
 - The home view (click "not at home" on the weather block once at home).
