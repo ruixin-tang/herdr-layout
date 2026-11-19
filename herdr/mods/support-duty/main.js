@@ -8,6 +8,7 @@ import { APPS, ENVS, read, tell } from "./deploys.js";
 // layout is BLOCK). "today" shows when my calendar has a support duty event
 // (the Claude Code mod `my-tickets` writes that next to the meetings).
 // Under the links, the Platform and AIS, each with a row per environment: what is deployed, what waits, and a Deploy button
+// (on staging also its release issue with how many boxes are ticked: a click opens it)
 // that opens `bin/deploy` in a tab (it shows the commits and asks before it pushes). On a
 // duty day, or while the block is open, it watches the deploys and says when one ends
 // (deploys.js); a running one also shows in the header, so the block can stay folded.
@@ -92,6 +93,10 @@ export default class SupportDuty extends View {
         .child(h_flex().gap(6).child(div().child(env.name)).child(div().text_size(11).text_color(t.dim).child(d?.sha ?? "")))
         .child(div().truncate().text_size(11).text_color(d?.state === "failed" ? t.blocked : t.dim)
           .child(!d ? "checking..." : `${says(d)}${d.ahead && !busy ? `, ${d.ahead} on ${env.from} to go` : ""}`)))
+      .when(d?.issue, (el) => el.child(h_flex().id(`deploy-issue-${app.id}`).flex_none().gap(5).px(6).py(3).rounded(6).text_size(11).cursor_pointer().hover((s) => s.bg(t.hover))
+        .on_click(() => { exec("open", [d.issue.url]); })
+        .child(div().text_color(t.accent).child(`#${d.issue.number}`))
+        .child(div().text_color(d.issue.ticked < d.issue.boxes ? t.muted : t.done).child(d.issue.open ? `${d.issue.ticked}/${d.issue.boxes}` : "closed"))))
       .when(d && d.ahead > 0 && !busy, (el) => el.child(div().id(`deploy-${app.id}-${env.id}`).flex_none().px(8).py(3).rounded(6).border_1().border_color(t.accent).text_size(11).text_color(t.accent).cursor_pointer()
         .hover((s) => s.bg(t.hover)).on_click((_e, cx) => { this.deploy(app, env); cx.notify(); }).child(`Deploy ${d.ahead}`)));
   }

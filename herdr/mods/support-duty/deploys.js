@@ -14,20 +14,25 @@ export const ENVS = [
   { id: "production", name: "Production", from: "staging", next: "Time to post the deploy messages." },
 ];
 
+const ISSUE = '[.[] | select(.pull_request | not) | {number, url: .html_url, open: (.state == "open"), ticked: ([.body // "" | scan("- \\\\[x\\\\] ")] | length), boxes: ([.body // "" | scan("- \\\\[[ x]\\\\] ")] | length)}]';
+
 const gh = async (path, jq) => JSON.parse((await exec("gh", ["api", path, "--jq", jq])).stdout);
 
 // { sha, pushed, state: "waiting" (CI has not started) | "deploying" | "deployed" | "failed",
-//   at (of that state), url (the job on CircleCI), ahead (commits on `from` not deployed here) }
+//   at (of that state), url (the job on CircleCI), ahead (commits on `from` not deployed here),
+//   issue (staging only: the newest release issue, { number, url, open, ticked, boxes }) }
 export async function read(app, env) {
   const API = `repos/floryndev/${app.id}`;
   const [push] = await gh(`${API}/activity?ref=refs/heads/${env.id}&per_page=1`, "[.[] | {sha: .after, at: .timestamp}]");
-  const [runs, ahead] = await Promise.all([
+  const [runs, ahead, issues] = await Promise.all([
     gh(`${API}/commits/${push.sha}/statuses?per_page=100`, `[.[] | select(.context == "${JOB}") | {state, at: .created_at, url: .target_url}]`),
     gh(`${API}/compare/${env.id}...${env.from}`, ".ahead_by"),
+    // A push to staging makes a "Release v...-staging.n" issue with the label staging.
+    env.id !== "staging" ? [] : gh(`${API}/issues?labels=staging&state=all&per_page=3`, ISSUE),
   ]);
   const pushed = Date.parse(push.at), run = runs.find((r) => Date.parse(r.at) >= pushed);
   const state = !run ? "waiting" : run.state === "pending" ? "deploying" : run.state === "success" ? "deployed" : "failed";
-  return { sha: push.sha.slice(0, 7), pushed, state, at: run ? Date.parse(run.at) : pushed, ahead,
+  return { sha: push.sha.slice(0, 7), pushed, state, at: run ? Date.parse(run.at) : pushed, ahead, issue: issues[0],
     url: run?.url ?? `https://app.circleci.com/pipelines/github/floryndev/${app.id}?branch=${env.id}` };
 }
 
