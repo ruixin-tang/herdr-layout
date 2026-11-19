@@ -15,8 +15,8 @@ import { land } from "./scenes.js";
 // In the ski season half of them are on a snowboard instead of skis.
 //   idle    -> on a bench beside the hut, at the far left of the valley, a little
 //              dimmed, with a mug of hot chocolate, tea or coffee (in the ski
-//              season; a glass in summer). No names there: the more that sit
-//              there, the smaller and closer; a hover says who it is.
+//              season; a glass in summer). No names there, a hover says who it
+//              is. More than four sit in two rows.
 // Nobody flies: on the mountain they follow the lift and the slope, in the
 // valley they walk along the floor.
 // An agent's sub-agents, in the ski season: while any is running it carries a folded
@@ -35,7 +35,7 @@ import { land } from "./scenes.js";
 // The sky is the real one over where I am (the weather mod's shared "weather.sky"):
 // the sun crosses from sunrise to sunset, the moon at night, clouds when it is
 // overcast, a darker sky and falling rain or snow when the radar says so; the
-// mountain's colours go with the light. A clock sits in the sky, top left.
+// mountain's colours go with the light. A wooden clock (day, time, the season's sign) sits in the sky, top left.
 // In the compact layout (shared "compact", set by the forest sprite on the laptop screen) the
 // strip is lower: the same mountain, drawn smaller (SMALLER), with everything on it.
 // The mountain is drawn here, as wide as the strip (the valley on the left, the
@@ -54,6 +54,8 @@ const FLIGHT = 14;
 const VALLEY = 232, SUMMIT = 84;
 // The valley floor, left to right: the hut, its benches, the flag with the queue, the lift station.
 const BENCHES = [168, 300], QUEUE = 350, STATION = 400, FLAT = 530;
+// How much nearer (lower) the front row of the idle ones sits.
+const FRONT = 16;
 // The mountain's outline and the lift's cable, drawn 1500 wide; fit() moves them to the strip's width.
 const PROFILE = [[0, 232], [470, 232], [530, 222], [700, 172], [760, 166], [880, 124], [1130, 124], [1210, 102], [1340, 84], [1500, 84]];
 const CABLE = [[452, 172], [600, 146], [700, 112], [880, 62], [1005, 62], [1130, 62], [1210, 40], [1340, 24], [1404, 24]];
@@ -72,7 +74,6 @@ const PEAKS = '<path d="M0 110 L90 44 L150 80 L250 8 L330 70 L400 36 L520 110z" 
 const STATION_ART = '<rect x="8" y="30" width="56" height="40" fill="#2b4250"/><path d="M2 32 L36 10 L70 32z" fill="#3a5666"/><path d="M2 32 L36 10 L70 32 L64 32 L36 15 L8 32z" fill="ROOF"/>'
   + '<rect x="16" y="40" width="14" height="12" rx="1" fill="#ffd166" opacity=".9"/><path d="M23 40 v12 M16 46 h14" stroke="#2b4250" stroke-width="1"/><rect x="38" y="42" width="18" height="28" rx="1" fill="#16303c"/>';
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const hash = (address) => [...address].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7);
 const YEAR = ["ski", "valley", "beach", "orchard"];
 const season = () => { const m = new Date().getMonth(); return m === 11 || m <= 2 ? "ski" : m <= 5 ? "valley" : m <= 7 ? "beach" : "orchard"; };
@@ -165,8 +166,7 @@ export default class Crew extends View {
     });
     // One step of everybody's lap; the figures glide to their next spot by themselves.
     cx.timer.every(STEP, (cx) => { this.tick += 1; this.step(); if (this.tick % 3 === 0) this.measure(cx); cx.notify(); });
-    // The clock shows seconds, so it is drawn again every second.
-    // The same timer notices the layout going compact or back, so the mountain is drawn again at once.
+    // Drawn again every second for the clock. The same timer notices the layout going compact or back, so the mountain is drawn again at once.
     cx.timer.every(1000, (cx) => { if (Boolean(shared("compact")) !== this.compact) this.measure(cx); cx.notify(); });
   }
 
@@ -249,7 +249,7 @@ export default class Crew extends View {
     // The followers are part of the figure, so they glide along with it. Chairs line up
     // by their tops (the cable), everybody else by their feet.
     // Nothing follows a skier (it has its wing), nor the idle ones of the new scenes: their benches stay calm.
-    const kids = ski || (this.scene.flat && pose === "rest") ? [] : subs, suit = SUITS[hash(a.address) % SUITS.length], chair = pose === "working" || pose === "pack";
+    const kids = ski || (this.scene.flat && pose.startsWith("rest")) ? [] : subs, suit = SUITS[hash(a.address) % SUITS.length], chair = pose === "working" || pose === "pack";
     const flat = Boolean(this.scene.flat), gulls = this.scene.look === "beach";
     // In the new scenes an animal follows, the same for every colour: chickens, seagulls (in the air), geese.
     const small = flat ? null : chair ? "working" : pose.startsWith("rest") ? "rest" : pose === "stuck" ? pose : this.scene.look === "ski" ? "carve" : "down";
@@ -289,6 +289,7 @@ export default class Crew extends View {
     const onLap = (a) => this.lap[a.address] !== undefined;
     const queue = wanting.filter((a) => !onLap(a)), seated = idle.filter((a) => !onLap(a));
 
+    const inFront = new Set();
     const figures = list.map((a) => {
       const wants = a.status === "blocked" || a.status === "done";
       // Sub-agents running, in the ski season: the wing, on its back or over its head.
@@ -312,11 +313,18 @@ export default class Crew extends View {
         const i = queue.indexOf(a);
         return this.figure(a, a.status, (s.queue ?? QUEUE) + i * 58, VALLEY - SIZE + 4, t, { wants: true, bounce: 420 + (i % 3) * 60 });
       }
-      // On the benches, without names: closer together and smaller when there are many.
-      const i = seated.indexOf(a), gap = Math.min(44, (BENCHES[1] - BENCHES[0]) / Math.max(1, seated.length - 1));
-      const size = Math.round(Math.min(48, Math.max(30, gap * 1.5))), ski = s.look === "ski";
-      return this.figure(a, ski ? `rest-${DRINKS[(hash(a.address) >>> 3) % DRINKS.length]}` : "rest", BENCHES[0] + i * gap, VALLEY - size + 4, t, { size, dim: true, named: false, steam: ski || Boolean(s.steam) });
+      // On the benches, without names. Up to four share one bench; more sit in two rows, the
+      // front row one fewer and in the gaps of the back row, so every face shows. Many: closer and smaller.
+      const i = seated.indexOf(a), rear = seated.length > 4 ? Math.ceil((seated.length + 1) / 2) : seated.length, near = seated.length - rear;
+      const gap = Math.min(44, (BENCHES[1] - BENCHES[0]) / Math.max(1, rear - 1));
+      const size = Math.round(Math.min(48, Math.max(30, gap * 1.5))), ski = s.look === "ski", front = i >= rear;
+      if (front) inFront.add(a.address);
+      const x = BENCHES[0] + (front ? (i - rear) + (rear - near) / 2 : i) * gap;
+      // On the beach the front row has no parasols: they would stand in front of the back row's faces.
+      return this.figure(a, ski ? `rest-${DRINKS[(hash(a.address) >>> 3) % DRINKS.length]}` : front && s.look === "beach" ? "rest-open" : "rest", x, VALLEY + (front ? FRONT : 0) - size + 4, t, { size, dim: true, named: false, steam: ski || Boolean(s.steam) });
     });
+    // The front row is drawn over the back row.
+    const drawn = [...figures.filter((_, i) => !inFront.has(list[i].address)), ...figures.filter((_, i) => inFront.has(list[i].address))];
 
     // What falls from the sky right now, more of it when it pours. Every drop only ever
     // goes down. It lives three steps: one waiting, hardly visible, at the top edge (it
@@ -346,13 +354,15 @@ export default class Crew extends View {
       .when(Boolean(s.before), (el) => el.child(image(`${SCENES}/${s.before}.svg`).absolute().left(0).top(0).w(this.width).h(Math.round(H * k))))
       .child(image(`${SCENES}/${s.key}.svg`).absolute().left(0).top(0).w(this.width).h(Math.round(H * k)))
       .children(falling)
-      // The clock: the time large, the day under it.
-      .child(v_flex().absolute().left(16).top(k < 1 ? 4 : 8).text_color("#f4f7f8")
-        .child(h_flex().items_end().gap(3)
-          .child(div().text_size(k < 1 ? 20 : 28).font_semibold().child(now.toTimeString().slice(0, 5)))
-          .child(div().w(24).pb(k < 1 ? 2 : 4).text_size(k < 1 ? 12 : 15).opacity(0.75).child(now.toTimeString().slice(6, 8))))
-        .child(div().text_size(11).opacity(0.8).child(`${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]}`)))
-      .children(figures)
+      // The clock, as in Stardew Valley: a wooden box with the day and the time on parchment, and
+      // the season's sign beside them.
+      .child(h_flex().absolute().left(12).top(k < 1 ? 4 : 8).p(4).gap(4).rounded(7).bg("#a8672c").border_2().border_color("#3a2313").text_color("#3a2313").font_semibold()
+        .child(v_flex().gap(3)
+          .child(div().w(k < 1 ? 70 : 88).px(6).rounded(3).bg("#f8e7b4").text_size(k < 1 ? 11 : 14).child(`${DAYS[now.getDay()].slice(0, 3)}. ${now.getDate()}`))
+          .child(div().w(k < 1 ? 70 : 88).px(6).rounded(3).bg("#f8e7b4").text_size(k < 1 ? 11 : 14).child(now.toTimeString().slice(0, 8))))
+        .child(h_flex().w(k < 1 ? 30 : 40).items_center().justify_center().rounded(3).bg("#f8e7b4")
+          .child(image(`${ART}/clock-${s.look === "alp" ? "valley" : s.look}.svg`).w(k < 1 ? 20 : 28).h(k < 1 ? 20 : 28))))
+      .children(drawn)
       .when(!list.length, (el) => el.child(div().absolute().left(560 * k).top((VALLEY - 16) * k).text_size(11).text_color(t.dim).child(s.empty ?? "Nobody on the mountain: start an agent and it takes the lift.")));
   }
 }

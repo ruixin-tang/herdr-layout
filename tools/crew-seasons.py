@@ -78,8 +78,9 @@ def boat(c, sail, mouth="smile", wave=False):
 
 
 def beach(c, pose):
-    if pose == "rest":  # on a lounger under a parasol, a cold drink in its hand
-        return S % f'''  {shadow(22)}<path d="M52 12 V60" stroke="#8a6a4a" stroke-width="2.2" stroke-linecap="round"/><path d="M30 16 Q52 -8 64 12 V16z" fill="#ff6b6b"/><path d="M44 16 Q52 -2 60 16z" fill="#fbf7ee"/>
+    if pose in ("rest", "rest-open"):  # on a lounger with a cold drink; under a parasol, or (the front row) in the sun
+        parasol = '<path d="M52 12 V60" stroke="#8a6a4a" stroke-width="2.2" stroke-linecap="round"/><path d="M30 16 Q52 -8 64 12 V16z" fill="#ff6b6b"/><path d="M44 16 Q52 -2 60 16z" fill="#fbf7ee"/>' if pose == "rest" else ''
+        return S % f'''  {shadow(22)}{parasol}
   <rect x="7" y="50" width="42" height="3.6" rx="1.6" fill="#fbf7ee"/><path d="M12 53 v7 M44 53 v7" stroke="#b9b4a0" stroke-width="2.4" stroke-linecap="round"/>
   {head("beach", c, 37)}{feet([(25, 53), (39, 53)], c)}{hands([(18, 44)], c, 3.2)}
   <path d="M41.5 37 h7 l-1 9 h-5z" fill="#bfe6f7"/><path d="M42 41 h6 l-.6 5 h-4.8z" fill="#ff9a3c"/><path d="M46 39 l2.6 -6" stroke="#ff6b6b" stroke-width="1.2" stroke-linecap="round"/>{hands([(44.5, 45)], c, 3)}'''
@@ -117,7 +118,7 @@ FOLLOWERS = {
   <ellipse cx="26" cy="42" rx="18" ry="12" fill="#fbf7ee"/><path d="M8 40 q-6 -6 -2 -12 q6 3 8 9z" fill="#e2dccb"/><path d="M38 38 Q46 24 43 12" stroke="#fbf7ee" stroke-width="8" fill="none" stroke-linecap="round"/>
   <circle cx="43.5" cy="11" r="5.6" fill="#fbf7ee"/><path d="M48.5 9.6 l8 2 -8 2.6z" fill="#ff9a3c"/><circle cx="45" cy="9.8" r="1.3" fill="#16323b"/>''',
 }
-POSES = {"valley": (valley, ("rest", "stuck", "hoe", "mine", "carry")), "beach": (beach, ("rest", "sail", "sailback", "adrift")), "orchard": (orchard, ("rest", "stuck", "pick", "carry"))}
+POSES = {"valley": (valley, ("rest", "stuck", "hoe", "mine", "carry")), "beach": (beach, ("rest", "rest-open", "sail", "sailback", "adrift")), "orchard": (orchard, ("rest", "stuck", "pick", "carry"))}
 
 n = 0
 for scene, (draw, poses) in POSES.items():
