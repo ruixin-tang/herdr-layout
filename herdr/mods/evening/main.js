@@ -85,7 +85,7 @@ export default class Evening extends View {
     const water = shared("water")?.day === now.toDateString() ? shared("water") : {};
     const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
     const sum = g && this.tickets ? [count(g.merged.length, "PR merged", "PRs merged"), count(g.opened.length, "opened", "opened"),
-      count(g.reviewed.length, "review", "reviews"), count(this.tickets.length, "ticket done", "tickets done")].join(" · ") : "";
+      count(g.reviewed.length, "review", "reviews"), count(this.tickets.length, "ticket done", "tickets done"), count(water.glasses ?? 0, "glass of water", "glasses of water")].join(" · ") : "";
     return v_flex().id("evening").size_full().min_h(0).bg(t.popover).text_color(t.foreground).text_size(13)
       .child(h_flex().h(46).flex_none().px(16).gap(8).items_center().border_b(1).border_color(t.border)
         .child(div().text_size(15).font_semibold().child("That was today"))
