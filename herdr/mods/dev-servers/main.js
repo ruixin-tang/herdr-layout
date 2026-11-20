@@ -185,8 +185,10 @@ export default class DevServers extends View {
     return v_flex().id("dev-servers").size_full().pt(4).border_t(1).border_color(t.border).bg(t.chrome).text_size(12.5)
       .child(h_flex().h(24).flex_none().px(6).gap(6).items_center()
         .child(this.link("morning", "Morning start", done ? t.muted : t.accent, t, (_e, cx) => this.brief(cx)))
+        .when(done, (el) => el.child(div().text_size(10.5).text_color(t.dim).child(`done ${new Date(morning.at).toTimeString().slice(0, 5)}`)))
         .child(div().flex_1())
-        .when(done, (el) => el.child(div().pr(4).text_size(10.5).text_color(t.dim).child(`done ${new Date(morning.at).toTimeString().slice(0, 5)}`))))
+        // The evening twin: today's recap (the `evening` dialog). It only reads.
+        .child(this.link("evening", "Conclude my day", t.accent, t, () => { run("mod.open", { name: "evening" }); }).px(8).border_1().border_color(t.accent)))
       .children(STACKS.map((s) => this.row(s, t)));
   }
 }

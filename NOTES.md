@@ -32,6 +32,7 @@ Live Herdr files are under `~/.config/herdr-app/`:
 | `mods/korok` | floating in the sidebar | Cheers when a ticket is done or a PR is merged. |
 | `mods/dev-servers` | sidebar | One light per dev stack (Platform :3000, AIS :4000), start/stop, links to the staging and production remote shells. Also does Morning start: fast-forwards master in `~/floryn` and `~/ais` (only a checkout on master without changes to tracked files), then starts the stacks that are not running. Runs from the "Morning start" row, from `dev-servers.morning`, and by itself on a working day from 06:00 the first time an agent is working. Shares its steps as `morning`. |
 | `mods/morning` | dialog | The Morning start brief: the steps above, what changed since 17:00 on the last working day (my PRs merged, reviews asked of me by name, red CI on master or my open PRs), today's meetings and duty. Does no work itself. Sets `morning.seen`. |
+| `mods/evening` | dialog | "Conclude my day": today's recap. My PRs merged and opened today, the reviews I gave today, tickets done today (from the ticket cache), the Dutch lesson. Only reads. Opened by the "Conclude my day" button beside "Morning start" in the sidebar, or `herdr-app do mod.open '{"name":"evening"}'`. |
 | `mods/over9k*` | sidebar, tabs, usage | Third-party, with small edits (My work button, display-only push/pull, `ALWAYS_LISTED` keeps ais listed, `over9k.subs` shares each agent's running subagents for the mountain, the footer row reads "Workspace help & options"). |
 
 Outside Herdr:
@@ -83,6 +84,12 @@ Outside Herdr:
   The mockup's script is not kept.
 
 ## Built but never seen working
+
+- Rain or snow in the crew strip: one big striped umbrella over the idle benches
+  (`mods/crew/umbrella-big.svg`) and a yellow rain hat and coat on everybody else
+  (`raincoat.svg`, placed by the `BODY` table in main.js: where the body sits in each pose).
+  Seen in all four scenes on 20 November 2026 with the rain forced on and one working agent;
+  not yet in real rain or snow, nor on a blocked, done, flying or snowboarding figure.
 
 - The dark cover on the laptop screen during the Dutch lesson: the helper ran and stopped on
   time and Chrome reported the right window spot (19 November 2026), but a screenshot of the

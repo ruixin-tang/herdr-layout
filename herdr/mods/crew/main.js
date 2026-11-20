@@ -56,6 +56,12 @@ const VALLEY = 232, SUMMIT = 84;
 const BENCHES = [168, 300], QUEUE = 350, STATION = 400, FLAT = 530;
 // How much nearer (lower) the front row of the idle ones sits.
 const FRONT = 16;
+// Where the middle of the body is in a drawing (of 64), for what is put on it afterwards.
+const BODY = { ski: { blocked: 35, done: 35, fly: 35, down: 36, working: 31, pack: 31, stuck: 40, carve: 33 }, flat: { pick: 31, sail: [20, 37], adrift: [20, 37], sailback: [44, 37] } };
+const body_ = (look, pose) => {
+  const at = look === "ski" ? BODY.ski[pose] ?? 36 : pose === "stuck" ? (look === "orchard" ? 37 : 44) : BODY.flat[pose] ?? 41;
+  return Array.isArray(at) ? at : [32, at];
+};
 // The mountain's outline and the lift's cable, drawn 1500 wide; fit() moves them to the strip's width.
 const PROFILE = [[0, 232], [470, 232], [530, 222], [700, 172], [760, 166], [880, 124], [1130, 124], [1210, 102], [1340, 84], [1500, 84]];
 const CABLE = [[452, 172], [600, 146], [700, 112], [880, 62], [1005, 62], [1130, 62], [1210, 40], [1340, 24], [1404, 24]];
@@ -231,7 +237,7 @@ export default class Crew extends View {
     // The spot and the drawings follow the mountain's size; the "!" and the name stay readable.
     x *= k; y *= k; size = Math.round(size * k);
     const little = Math.round(SMALL * k);
-    const subs = this.followers(a), ski = this.scene.look === "ski";
+    const subs = this.followers(a), ski = this.scene.look === "ski", coat = this.wet && !pose.startsWith("rest");
     const says = a.status === "done" ? "finished, have a look" : a.status === "blocked" ? "needs your answer" : a.status;
     const body = v_flex().w(84).items_center()
       .child(h_flex().h(14).justify_center().when(wants, (el) => el.child(div().h(14).min_w(14).px(3).flex().items_center().justify_center().rounded(7)
@@ -242,7 +248,9 @@ export default class Crew extends View {
         .child(image(`${ART}/${this.scene.look}-${SUITS[hash(a.address) % SUITS.length]}-${pose}${ski && BOARDED.includes(pose) && boards(a.address) ? "-board" : ""}.svg`).w(size).h(size).when(dim, (el) => el.opacity(0.8)))
         // A puff of steam over the mug, each at its own pace.
         .when(steam, (el) => el.relative().child(div().absolute().left(size * 0.69).top(size * 0.4).size(size / 12).rounded(size / 24).bg("#f4f7f8")
-          .loop("opacity", { from: 0.05, to: 0.6, period: 1800 + (hash(a.address) % 5) * 300 }))))
+          .loop("opacity", { from: 0.05, to: 0.6, period: 1800 + (hash(a.address) % 5) * 300 })))
+        // In rain or snow: a yellow rain hat and coat, put on where the body is in this drawing.
+        .when(coat, (el) => { const [cx, cy] = body_(this.scene.look, pose); return el.relative().child(image(`${ART}/raincoat.svg`).absolute().left(((cx - 32) * size) / 64).top(((cy - 37) * size) / 64).w(size).h(size)); }))
       .when(named, (el) => el.child(div().w(84).h(13).text_size(10).truncate().text_color(wants ? t.blocked : t.muted).child(name)));
     // In a chair it is another element than on foot, so it gets on and off in one go and never glides between cable and ground.
     // On its bench it is another one too: it sits down there in one go, and does not slide over, bench and all.
@@ -290,6 +298,7 @@ export default class Crew extends View {
     const queue = wanting.filter((a) => !onLap(a)), seated = idle.filter((a) => !onLap(a));
 
     const inFront = new Set();
+    this.wet = (s.sky?.mm ?? 0) >= 0.1;
     const figures = list.map((a) => {
       const wants = a.status === "blocked" || a.status === "done";
       // Sub-agents running, in the ski season: the wing, on its back or over its head.
@@ -320,9 +329,20 @@ export default class Crew extends View {
       const size = Math.round(Math.min(48, Math.max(30, gap * 1.5))), ski = s.look === "ski", front = i >= rear;
       if (front) inFront.add(a.address);
       const x = BENCHES[0] + (front ? (i - rear) + (rear - near) / 2 : i) * gap;
+      const pose = ski ? `rest-${DRINKS[(hash(a.address) >>> 3) % DRINKS.length]}` : front && s.look === "beach" ? "rest-open" : "rest";
       // On the beach the front row has no parasols: they would stand in front of the back row's faces.
-      return this.figure(a, ski ? `rest-${DRINKS[(hash(a.address) >>> 3) % DRINKS.length]}` : front && s.look === "beach" ? "rest-open" : "rest", x, VALLEY + (front ? FRONT : 0) - size + 4, t, { size, dim: true, named: false, steam: ski || Boolean(s.steam) });
+      return this.figure(a, pose, x, VALLEY + (front ? FRONT : 0) - size + 4, t, { size, dim: true, named: false, steam: ski || Boolean(s.steam) });
     });
+    // In rain or snow one big umbrella stands over the benches, as wide as the back row, its
+    // rim just over their heads (over the parasols on the beach). It is drawn behind everybody.
+    const shelter = [];
+    if (this.wet && seated.length) {
+      const rear = seated.length > 4 ? Math.ceil((seated.length + 1) / 2) : seated.length, gap = Math.min(44, (BENCHES[1] - BENCHES[0]) / Math.max(1, rear - 1));
+      const size = Math.round(Math.min(48, Math.max(30, gap * 1.5))), wide = (rear - 1) * gap + size + 40, tall = wide * 0.28;
+      const mid = BENCHES[0] + ((rear - 1) * gap) / 2, rim = VALLEY - size + 4 + (s.look === "beach" ? 0 : size * 0.3) - 2;
+      shelter.push(div().absolute().left((mid - 1.5) * k).top((rim - tall + 4) * k).w(3 * k).h((VALLEY + 4 - rim + tall - 4) * k).rounded(1).bg("#6b4a2f"),
+        image(`${ART}/umbrella-big.svg`).absolute().left((mid - wide / 2) * k).top((rim - tall) * k).w(wide * k).h(tall * k));
+    }
     // The front row is drawn over the back row.
     const drawn = [...figures.filter((_, i) => !inFront.has(list[i].address)), ...figures.filter((_, i) => inFront.has(list[i].address))];
 
@@ -332,8 +352,8 @@ export default class Crew extends View {
     // falls through the strip, slanting with the wind. Each starts at its own moment
     // anywhere in a whole step, so the rain neither comes down in rows nor thins out
     // between steps. Then a fresh one takes its place. Snow does the same, slowly.
-    const mm = s.sky?.mm ?? 0, snow = Boolean(s.sky?.snow), wet = mm >= 0.1;
-    const count = !wet ? 0 : Math.round(Math.min(1, 0.4 + mm / 4) * (this.width / (snow ? 12 : 3.2)));
+    const mm = s.sky?.mm ?? 0, snow = Boolean(s.sky?.snow);
+    const count = !this.wet ? 0 : Math.round(Math.min(1, 0.4 + mm / 4) * (this.width / (snow ? 12 : 3.2)));
     const fall = snow ? 2800 : 1000;
     const falling = Array.from({ length: count }, (_, i) => {
       const life = Math.floor((this.tick + i) / 3), going = (this.tick + i) % 3 > 0;
@@ -362,6 +382,7 @@ export default class Crew extends View {
           .child(div().w(k < 1 ? 70 : 88).px(6).rounded(3).bg("#f8e7b4").text_size(k < 1 ? 11 : 14).child(now.toTimeString().slice(0, 8))))
         .child(h_flex().w(k < 1 ? 30 : 40).items_center().justify_center().rounded(3).bg("#f8e7b4")
           .child(image(`${ART}/clock-${s.look === "alp" ? "valley" : s.look}.svg`).w(k < 1 ? 20 : 28).h(k < 1 ? 20 : 28))))
+      .children(shelter)
       .children(drawn)
       .when(!list.length, (el) => el.child(div().absolute().left(560 * k).top((VALLEY - 16) * k).text_size(11).text_color(t.dim).child(s.empty ?? "Nobody on the mountain: start an agent and it takes the lift.")));
   }
