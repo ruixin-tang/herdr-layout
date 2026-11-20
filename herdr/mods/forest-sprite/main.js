@@ -53,6 +53,8 @@ export default class ForestSprite extends View {
           if (c === "compact") { localStorage.setItem("compact", shared("compact") ? "off" : "on"); this.fit(cx); }
           if (c === "needs-me") this.needsMe();
           if (c === "my-work") this.myWork();
+          // The "did you drink?" question once more (to look at it).
+          if (c === "water") setShared("water", { ...(shared("water") ?? {}), offer: Date.now() });
           // Today's lesson once more, also when it is done already (to look at the dialog).
           if (c === "lesson") { setShared("dutch", { ...(shared("dutch") ?? {}), done: false, skipped: false, watchAt: null }); this.lesson(true); }
           cx.notify();
