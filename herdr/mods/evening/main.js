@@ -5,7 +5,7 @@ import { exec, readTextFile, theme, home, checking, shared, props, closeOverlay 
 // "Conclude my day", as a dialog: what I did today. It only reads, nothing is stopped or saved.
 //   my PRs merged today, my PRs opened today, the reviews I gave today (GitHub)
 //   the tickets I finished today (the cache the Claude Code mod `my-tickets` writes)
-//   whether the Dutch lesson is done
+//   the glasses of water counted today (the mountain's water bar), whether the Dutch lesson is done
 // Opened by the "Conclude my day" button in the sidebar, beside "Morning start".
 const TICKETS = `${home()}/.cache/my-work/tickets.json`;
 const PR = "number title url repository{name}";
@@ -82,6 +82,7 @@ export default class Evening extends View {
 
   render() {
     const t = theme(), now = new Date(), g = this.github, dutch = shared("dutch") ?? {}, lesson = dutch.day === now.toDateString();
+    const water = shared("water")?.day === now.toDateString() ? shared("water") : {};
     const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
     const sum = g && this.tickets ? [count(g.merged.length, "PR merged", "PRs merged"), count(g.opened.length, "opened", "opened"),
       count(g.reviewed.length, "review", "reviews"), count(this.tickets.length, "ticket done", "tickets done")].join(" · ") : "";
@@ -101,6 +102,8 @@ export default class Evening extends View {
           .child(this.heading("Tickets done", t))
           .children(!this.tickets ? [this.note("Reading…", t)] : !this.tickets.length ? [this.note("No ticket finished today.", t)]
             : this.tickets.map((x, i) => this.row(`ticket-${i}`, "ansi2", `#${x.id}`, x.title, t)))
+          .child(this.heading("Water", t))
+          .child(water.glasses ? this.row("water", "accent", "Glasses", `${water.glasses} of 8 today`, t) : this.note("No glass counted today.", t))
           .child(this.heading("Dutch", t))
           .child(lesson && dutch.done ? this.row("dutch", "ansi2", "Journaal", `Watched. Streak: ${count(dutch.streak ?? 1, "day", "days")}`, t)
             : this.note(lesson && dutch.skipped ? "Skipped today." : "Not watched today.", t))));

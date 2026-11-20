@@ -87,6 +87,15 @@ Outside Herdr:
 
 ## Built but never seen working
 
+- Water (20 November 2026): the forest sprite reads the Mac's idle time every 20 seconds;
+  50 minutes at the Mac without 3 minutes away makes water due (never during a meeting):
+  the sprite says so and the crew clock's sign turns into a drop, until I have been away for
+  3 minutes. Back from such a break the sprite offers "+1 glass" for 5 minutes. The water bar
+  beside the clock shows today's glasses of 8; a click on a drop sets the count. State in
+  shared `water`; the evening recap shows the count. Seen: the bar, and the due state with the
+  time shortened. Not seen: a real 50 minutes, the break clearing it, the "+1" offer, a click
+  on a drop, the pause during a meeting.
+
 - The walk between the benches and the rest of the crew strip (20 November 2026): an agent that
   starts working stands up at its seat and walks to the station; one that comes back walks to
   its seat and only then sits down (`this.out`, `this.back`, `this.seat` in main.js). Seen in

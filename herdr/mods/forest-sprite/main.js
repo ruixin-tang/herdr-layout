@@ -33,6 +33,8 @@ const DUTCH = /dutch|nederlands/i, SNOOZE = 5 * 60000;
 // and agenda blocks read the shared "compact" and make themselves one line each.
 // "forest-sprite.compact" (a key) switches by hand; that choice holds until it is the
 // window's own again.
+// Water: after SIT at the Mac without a BREAK away from it, the sprite sends me for a glass.
+const SIT = 50 * 60000, BREAK = 180000, OFFER = 300000;
 const LAPTOP = 1800, COMPACT = [["crew", 260, 160], ["panel", 368, 312]];
 
 export default class ForestSprite extends View {
@@ -40,6 +42,7 @@ export default class ForestSprite extends View {
     this.meetings = []; this.quiet = localStorage.getItem("quiet") ?? "";
     if (!checking()) { this.loadMeetings(cx); cx.timer.every(60000, (cx) => this.loadMeetings(cx)); }
     if (!checking()) { this.sky(); cx.timer.every(300000, () => this.sky()); }
+    if (!checking()) { this.sat(cx); cx.timer.every(20000, (cx) => this.sat(cx)); }
     // Once a day, the first time Herdr is open: copy my workspace into ~/workspace-backup and commit it there.
     if (!checking()) { this.backup(); cx.timer.every(3600000, () => this.backup()); }
     if (!checking()) {
@@ -122,6 +125,26 @@ export default class ForestSprite extends View {
     });
   }
 
+  // How long I have been sitting: the Mac says how long ago I last touched it. Away for BREAK
+  // (or the Mac asleep that long) is a break and starts the count again; SIT without one makes
+  // water due, but never during a meeting. Shared as "water": { day, glasses, since, due, offer }
+  // for the mountain's water bar; after a break that was due, `offer` asks whether I drank.
+  sat(cx) {
+    cx.spawn(async (cx) => {
+      try {
+        const r = await exec("sh", ["-c", "ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print $NF/1000000; exit}'"]);
+        const now = Date.now(), day = new Date().toDateString(), idle = Number(r.stdout) || 0, was = shared("water") ?? {};
+        const w = was.day === day ? { ...was } : { day, glasses: 0, since: now, due: false, offer: 0 };
+        const away = idle >= BREAK || (this.satAt && now - this.satAt > BREAK);
+        this.satAt = now;
+        if (away) { if (w.due) w.offer = now; w.since = now; w.due = false; }
+        else w.due = now - w.since >= SIT && !this.meetings.some((m) => m.start <= now && now < m.end);
+        if (JSON.stringify(w) !== JSON.stringify(was)) setShared("water", w);
+        cx.notify();
+      } catch { /* next time */ }
+    });
+  }
+
   // Today's Dutch lesson from the calendar, once it has started and while it is neither done nor skipped.
   lessonDue() {
     const now = Date.now(), day = new Date().toDateString(), s = shared("dutch") ?? {};
@@ -170,6 +193,11 @@ export default class ForestSprite extends View {
         go: () => { this.quiet = `${meet.title}@${meet.start}`; localStorage.setItem("quiet", this.quiet); if (meet.url) exec("open", [meet.url]); } };
     }
     if (blocked) return { art: "alert", bubble: "!", color: "blocked", tip: blocked.title, bob: 500, go: () => run("pane.focus", { pane: blocked.pane }) };
+    // Sitting too long: it only goes away when I have been away from the Mac for a few minutes.
+    const water = shared("water") ?? {};
+    if (water.due) return { art: "alert", bubble: "H2O", color: "accent", say: `You have been sitting for ${Math.round((Date.now() - water.since) / 60000)} minutes. Go get some water.`, tip: "Goes away once you have been away for 3 minutes", bob: 800, wide: true, go: null };
+    if (water.offer && Date.now() - water.offer < OFFER) return { art: "happy", bubble: "+1", color: "done", say: "Welcome back. Did you drink? Click to add a glass.", tip: "Click: one more glass", bob: 900, wide: true,
+      go: () => { const w = shared("water") ?? {}; setShared("water", { ...w, glasses: (w.glasses ?? 0) + 1, offer: 0 }); } };
     // Morning start ran by itself (the dev-servers mod, at my first session): a click opens its brief.
     const today = new Date().toDateString(), morning = shared("morning");
     if (morning?.day === today && morning.auto && shared("morning.seen") !== today)

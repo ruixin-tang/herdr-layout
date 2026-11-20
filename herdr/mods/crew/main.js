@@ -1,6 +1,6 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, terminals, theme, run, shared, layout, appHome, readTextFile, exec, checking, nextCommand } from "herdr";
+import { agents, terminals, theme, run, shared, layout, appHome, readTextFile, exec, checking, nextCommand, setShared } from "herdr";
 import { mix, light, heaven as sky_ } from "./sky.js";
 import { land } from "./scenes.js";
 
@@ -55,7 +55,7 @@ const VALLEY = 232, SUMMIT = 84;
 // The valley floor, left to right: the hut, its benches, the flag with the queue, the lift station.
 const BENCHES = [168, 300], QUEUE = 350, STATION = 400, FLAT = 530;
 // How much nearer (lower) the front row of the idle ones sits.
-const FRONT = 16;
+const FRONT = 16, GLASSES = 8;
 // Where the middle of the body is in a drawing (of 64), for what is put on it afterwards.
 const BODY = { ski: { blocked: 35, done: 35, fly: 35, down: 36, working: 31, pack: 31, stuck: 40, carve: 33 }, flat: { pick: 31, sail: [20, 37], adrift: [20, 37], sailback: [44, 37] } };
 const body_ = (look, pose) => {
@@ -392,6 +392,7 @@ export default class Crew extends View {
         .map((el) => (snow ? el.size(3 + (seed % 2)).rounded(2).bg("#f4f7f8") : el.w(1.5).h(going ? 8 + near * 4 : 1).rounded(1).bg("#d7e8f1")));
     });
     const now = new Date();
+    const water = shared("water")?.day === now.toDateString() ? shared("water") : {}, glasses = Math.min(GLASSES, water.glasses ?? 0);
 
     return frame
       .when(Boolean(s.before), (el) => el.child(image(`${SCENES}/${s.before}.svg`).absolute().left(0).top(0).w(this.width).h(Math.round(H * k))))
@@ -404,7 +405,16 @@ export default class Crew extends View {
           .child(div().w(k < 1 ? 70 : 88).px(6).rounded(3).bg("#f8e7b4").text_size(k < 1 ? 11 : 14).child(`${DAYS[now.getDay()].slice(0, 3)}. ${now.getDate()}`))
           .child(div().w(k < 1 ? 70 : 88).px(6).rounded(3).bg("#f8e7b4").text_size(k < 1 ? 11 : 14).child(now.toTimeString().slice(0, 8))))
         .child(h_flex().w(k < 1 ? 30 : 40).items_center().justify_center().rounded(3).bg("#f8e7b4")
-          .child(image(`${ART}/clock-${s.look === "alp" ? "valley" : s.look}.svg`).w(k < 1 ? 20 : 28).h(k < 1 ? 20 : 28))))
+          .child(image(`${ART}/clock-${water.due ? "water" : s.look === "alp" ? "valley" : s.look}.svg`).w(k < 1 ? 20 : 28).h(k < 1 ? 20 : 28))))
+      // The water bar beside it: a drop for every glass today, of GLASSES. A click on a drop sets
+      // the count to it (on the last full one: takes it away again). The forest sprite keeps
+      // "water" and sends me for a glass when I sat too long; the clock's sign is a drop then.
+      .child(div().id("crew-water").absolute().left(k < 1 ? 142 : 172).top(k < 1 ? 4 : 8).p(4).rounded(7).bg("#a8672c").border_2().border_color("#3a2313")
+        .tooltip(`${glasses} of ${GLASSES} glasses of water today`)
+        .child(h_flex().flex_wrap().w((k < 1 ? 14 : 18) * 4 + 8).px(4).py(k < 1 ? 1 : 3).rounded(3).bg("#f8e7b4")
+          .children(Array.from({ length: GLASSES }, (_, i) => div().id(`crew-glass-${i}`).cursor_pointer()
+            .on_click(() => { setShared("water", { ...(shared("water") ?? {}), day: now.toDateString(), glasses: glasses === i + 1 ? i : i + 1, offer: 0 }); })
+            .child(image(`${ART}/clock-water.svg`).w(k < 1 ? 14 : 18).h(k < 1 ? 14 : 18).opacity(i < glasses ? 1 : 0.18))))))
       .children(shelter)
       .children(drawn)
       .when(!list.length, (el) => el.child(div().absolute().left(560 * k).top((VALLEY - 16) * k).text_size(11).text_color(t.dim).child(s.empty ?? "Nobody on the mountain: start an agent and it takes the lift.")));
