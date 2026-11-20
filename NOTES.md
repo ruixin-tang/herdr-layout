@@ -10,7 +10,8 @@ Written on 2026-11-18 as the hand-off from the session that built it.
   "the sidebar", "the sprite", "the mountain" always mean Herdr, never the Claude Code terminal.
 - This folder (`~/workspace-backup`) is a local git repository. `sh backup.sh` copies the
   live files here, commits and pushes to the private GitHub repo `ruixin-tang/herdr-layout`
-  (since 20 November 2026; pushing here never needs asking); `sh backup.sh restore` copies them back. Herdr runs the
+  (since 20 November 2026; pushing here never needs asking). A Stop hook in
+  `.claude/settings.json` runs it after every turn of a Claude Code session started in this folder; `sh backup.sh restore` copies them back. Herdr runs the
   backup once a day (from the forest sprite). Commits here are automatic and unsigned by
   design; there is no remote. Edit the live files, then run `sh backup.sh`.
 
