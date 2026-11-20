@@ -86,6 +86,12 @@ Outside Herdr:
 
 ## Built but never seen working
 
+- The walk between the benches and the rest of the crew strip (20 November 2026): an agent that
+  starts working stands up at its seat and walks to the station; one that comes back walks to
+  its seat and only then sits down (`this.out`, `this.back`, `this.seat` in main.js). Seen in
+  the orchard with one agent switched by a test; not in the other scenes, nor from the queue
+  after a click on a finished agent.
+
 - Rain or snow in the crew strip: one big striped umbrella over the idle benches
   (`mods/crew/umbrella-big.svg`) and a yellow rain hat and coat on everybody else
   (`raincoat.svg`, placed by the `BODY` table in main.js: where the body sits in each pose).

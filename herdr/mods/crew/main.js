@@ -159,6 +159,9 @@ export default class Crew extends View {
     // Where each agent is on its lap: 0 is on foot at the lift station, then the steps
     // along the lift, then the way down. Absent: not on the mountain.
     this.lap = {};
+    // For the walk between the benches and the rest: who was out there last time, when each one
+    // came back, and where each one sat.
+    this.out = new Set(); this.back = {}; this.seat = {};
     if (checking()) return;
     this.measure(cx);
     cx.spawn(async (cx) => {
@@ -290,7 +293,7 @@ export default class Crew extends View {
     const slope = (line, i) => { const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)]; return (b[1] - a[1]) / (b[0] - a[0] || 1); };
     const frame = div().id("crew").size_full().relative().overflow_hidden().rounded(6).bg(t.chrome).border_1().border_color(t.border);
     if (!s) return frame;
-    const list = agents();
+    const list = agents(), ms = Date.now();
     const wanting = list.filter((a) => a.status === "blocked" || a.status === "done");
     const idle = list.filter((a) => !["working", "blocked", "done"].includes(a.status));
     // On the mountain: whoever is on a lap, working or on its way down to tell me something.
@@ -300,7 +303,23 @@ export default class Crew extends View {
     const queue = wanting.filter((a) => !onLap(a)), seated = idle.filter((a) => !onLap(a));
 
     const inFront = new Set();
+    // Whoever comes back to the benches walks there first, and only then sits down; whoever
+    // leaves them stands up at its seat first, and walks from there.
+    for (const a of list) {
+      if (!seated.includes(a)) this.out.add(a.address);
+      else if (this.out.delete(a.address)) this.back[a.address] = ms;
+    }
+    const rise = (a, x, y) => {
+      const from = this.seat[a.address];
+      if (!from) return [x, y];
+      // Drawn once where it sat, so the walk has somewhere to start.
+      if (from[2] === undefined) { from[2] = ms; return [from[0], from[1]]; }
+      if (ms - from[2] < 100) return [from[0], from[1]];
+      delete this.seat[a.address];
+      return [x, y];
+    };
     this.wet = (s.sky?.mm ?? 0) >= 0.1;
+    const afoot = s.flat ? "walk" : s.look === "ski" ? "carve" : "down";
     const figures = list.map((a) => {
       const wants = a.status === "blocked" || a.status === "done";
       // Sub-agents running, in the ski season: the wing, on its back or over its head.
@@ -308,7 +327,7 @@ export default class Crew extends View {
       if (onLap(a)) {
         const at = this.lap[a.address] ?? 0, stuck = a.status === "blocked";
         // On foot to the station first: a chair only ever hangs from the cable.
-        if (at === 0) return this.figure(a, s.flat ? "walk" : s.look === "ski" ? "carve" : "down", s.start ?? s.lift[0][0], VALLEY - SIZE + 4, t, { wants });
+        if (at === 0) return this.figure(a, afoot, ...rise(a, s.start ?? s.lift[0][0], VALLEY - SIZE + 4), t, { wants });
         // In the flat scenes a step says its own pose, and its height is the ground's, not a cable's.
         if (at <= s.lift.length && s.flat) return this.figure(a, s.lift[at - 1][2], s.lift[at - 1][0], s.lift[at - 1][1] - SIZE + 4, t, { wants });
         if (at <= s.lift.length) return this.figure(a, winged ? "pack" : "working", s.lift[at - 1][0], s.lift[at - 1][1], t, { wants, back: [-1, slope(s.lift, at - 1)] });
@@ -322,7 +341,7 @@ export default class Crew extends View {
       }
       if (wants) {
         const i = queue.indexOf(a);
-        return this.figure(a, a.status, (s.queue ?? QUEUE) + i * 58, VALLEY - SIZE + 4, t, { wants: true, bounce: 420 + (i % 3) * 60 });
+        return this.figure(a, a.status, ...rise(a, (s.queue ?? QUEUE) + i * 58, VALLEY - SIZE + 4), t, { wants: true, bounce: 420 + (i % 3) * 60 });
       }
       // On the benches, without names. Up to four share one bench; more sit in two rows, the
       // front row one fewer and in the gaps of the back row, so every face shows. Many: closer and smaller.
@@ -331,6 +350,8 @@ export default class Crew extends View {
       const size = Math.round(Math.min(48, Math.max(30, gap * 1.5))), ski = s.look === "ski", front = i >= rear;
       if (front) inFront.add(a.address);
       const x = BENCHES[0] + (front ? (i - rear) + (rear - near) / 2 : i) * gap;
+      this.seat[a.address] = [x, VALLEY + (front ? FRONT : 0) - SIZE + 4];
+      if (ms - (this.back[a.address] ?? 0) < STEP) return this.figure(a, afoot, ...this.seat[a.address], t, { named: false });
       const pose = ski ? `rest-${DRINKS[(hash(a.address) >>> 3) % DRINKS.length]}` : front && s.look === "beach" ? "rest-open" : "rest";
       // On the beach the front row has no parasols: they would stand in front of the back row's faces.
       return this.figure(a, pose, x, VALLEY + (front ? FRONT : 0) - size + 4, t, { size, dim: true, named: false, steam: ski || Boolean(s.steam) });
@@ -348,7 +369,7 @@ export default class Crew extends View {
     // The front row is drawn over the back row.
     const drawn = [...figures.filter((_, i) => !inFront.has(list[i].address)), ...figures.filter((_, i) => inFront.has(list[i].address))];
 
-    // What falls from the sky right now, more of it when it pours. Every drop only ever
+    // What falls from the sky right ms, more of it when it pours. Every drop only ever
     // goes down. It lives three steps: one waiting, hardly visible, at the top edge (it
     // has to be inside the strip, or Herdr does not animate it), then two in which it
     // falls through the strip, slanting with the wind. Each starts at its own moment
