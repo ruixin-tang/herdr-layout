@@ -1,6 +1,6 @@
 #!/bin/sh
 # Copies my Herdr workspace into this folder and commits what changed.
-#   sh backup.sh           copy and commit
+#   sh backup.sh           copy, commit and push to GitHub
 #   sh backup.sh restore   copy everything back (after a broken edit, or on a new Mac)
 # What is mine: my own Herdr mods, the edited over9k mods, the layout, the themes, my keys,
 # and the Claude Code mod that syncs tickets and calendar. Keys never come along
@@ -36,3 +36,5 @@ rsync -a --delete --exclude '.claude-plugin/types' "$HOME/.claude/mods/my-ticket
 cd "$here"
 git add -A
 if git diff --cached --quiet; then echo "nothing changed"; else git commit -q -m "Backup $(date '+%Y-%m-%d %H:%M')" && echo "saved: $(git log -1 --format=%s)"; fi
+# Up to the private GitHub repo (ruixin-tang/herdr-layout), also what an earlier run could not send.
+if git remote get-url origin >/dev/null 2>&1; then git push -q origin main 2>/dev/null && echo "pushed" || echo "not pushed: GitHub could not be reached, the next backup tries again"; fi

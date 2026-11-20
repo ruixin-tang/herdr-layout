@@ -294,7 +294,9 @@ export default class Crew extends View {
     const wanting = list.filter((a) => a.status === "blocked" || a.status === "done");
     const idle = list.filter((a) => !["working", "blocked", "done"].includes(a.status));
     // On the mountain: whoever is on a lap, working or on its way down to tell me something.
-    const onLap = (a) => this.lap[a.address] !== undefined;
+    // One that just started working is at the station at once: its lap only begins with the next
+    // step, and until then it would be drawn as one more on the benches, gliding about there.
+    const onLap = (a) => this.lap[a.address] !== undefined || a.status === "working";
     const queue = wanting.filter((a) => !onLap(a)), seated = idle.filter((a) => !onLap(a));
 
     const inFront = new Set();
@@ -304,7 +306,7 @@ export default class Crew extends View {
       // Sub-agents running, in the ski season: the wing, on its back or over its head.
       const winged = s.look === "ski" && a.status === "working" && this.followers(a).length > 0;
       if (onLap(a)) {
-        const at = this.lap[a.address], stuck = a.status === "blocked";
+        const at = this.lap[a.address] ?? 0, stuck = a.status === "blocked";
         // On foot to the station first: a chair only ever hangs from the cable.
         if (at === 0) return this.figure(a, s.flat ? "walk" : s.look === "ski" ? "carve" : "down", s.start ?? s.lift[0][0], VALLEY - SIZE + 4, t, { wants });
         // In the flat scenes a step says its own pose, and its height is the ground's, not a cable's.
