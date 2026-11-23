@@ -176,11 +176,14 @@ export default class ForestSprite extends View {
     });
   }
 
-  // The word list for today's Dutch lesson (mods/dutch/words.sh), made once a day; tried again until it works.
+  // The word list for today's Dutch lesson (mods/dutch/words.sh), made once a day. Three tries
+  // a day and no more: the helper may refuse the text (Floryn's data rule, the news names
+  // people), and then the lesson simply has no list.
   words() {
     const day = new Date().toDateString();
-    if (this.wordsDay === day || this.wordsBusy) return;
-    this.wordsBusy = true;
+    if (this.wordsTried?.day !== day) this.wordsTried = { day, n: 0 };
+    if (this.wordsDay === day || this.wordsBusy || this.wordsTried.n >= 3) return;
+    this.wordsBusy = true; this.wordsTried.n += 1;
     exec("sh", [`${appHome()}/mods/dutch/words.sh`, appHome()], { timeout: 120000 })
       .then((r) => { if (r.code === 0) this.wordsDay = day; }).catch(() => null).finally(() => { this.wordsBusy = false; });
   }

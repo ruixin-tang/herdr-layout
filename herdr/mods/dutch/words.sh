@@ -19,6 +19,8 @@ done | jq -s -c 'sort_by(.at) | last')
 id=$(printf '%s' "$episode" | jq -r .id)
 [ -n "$id" ] && [ "$id" != null ] || { echo "no episode found" >&2; exit 1; }
 [ "$(jq -r '.id // ""' "$out" 2>/dev/null)" != "$id" ] || exit 0
+# The list of an older episode must not stay: without a list the lesson opens the page of episodes.
+rm -f "$out"
 
 # The subtitles as "m:ss text" lines.
 text=$(curl -fsS -m 20 "https://cdn.npoplayer.nl/subtitles/nl/$id.vtt" | awk '
