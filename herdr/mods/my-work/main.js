@@ -284,11 +284,11 @@ export default class MyWork extends View {
     return v_flex().flex_none().px(8).py(5).gap(2).rounded(8).hover((s) => s.bg(t.hover))
       .child(h_flex().gap(8).items_center()
         // Whose turn, as a fox's head (tools/fox.py): awake with a "!" (mine), asleep (someone else's), three of them (the team), a star (shipped).
-        .child(image(`mods/my-work/fox-${item.side}.svg`).size(18).flex_none())
+        .child(image(`mods/my-work/fox-${item.side}.svg`).size(26).flex_none())
         .child(div().id(`open-${item.url}`).flex_1().min_w(0).truncate().cursor_pointer().child(item.title)
           // A PR: open it. A ticket: to its agent, or pick it up.
           .on_click((_e, cx) => { if (!item.ticket) exec("open", [item.url]); else if (agent) run("pane.focus", { pane: agent.pane }); else this.pickUp(item, cx); })))
-      .child(h_flex().pl(18).gap(2).items_center().text_size(11).text_color(t.dim)
+      .child(h_flex().pl(30).gap(2).items_center().text_size(11).text_color(t.dim)
         .child(this.link(`id-${item.url}`, item.id, t.dim, t, () => { exec("open", [item.url]); }))
         .child(div().flex_1().min_w(0).truncate().child(`· ${item.meta}`))
         .when(Boolean(item.steps), (el) => el.child(this.link(`steps-${item.url}`, "Done", t.muted, t, (_e, cx) => {
@@ -297,7 +297,7 @@ export default class MyWork extends View {
         })))
         .when(!trail, (el) => el.child(hand)))
       // The trail: its PR with CI, the comments waiting for me, its branch (a click opens a tab in its worktree), whether it is live, its agent.
-      .when(trail, (el) => el.child(h_flex().pl(18).gap(2).items_center().text_size(11).text_color(t.dim)
+      .when(trail, (el) => el.child(h_flex().pl(30).gap(2).items_center().text_size(11).text_color(t.dim)
         .when(Boolean(item.pr), (row) => row.child(this.link(`pr-${item.url}`, item.pr.note ? `${item.pr.id} ${item.pr.note}` : item.pr.id, t.accent, t, () => { exec("open", [item.pr.url]); })))
         .when(Boolean(ci), (row) => row.child(div().id(`ci-${item.url}`).mx(3).size(7).flex_none().rounded(4).bg(t[ci[0]]).tooltip(ci[1])))
         .when(Boolean(pull?.waiting), (row) => row.child(this.link(`asked-${item.url}`, `${pull.waiting} to answer`, t.blocked, t, () => { exec("open", [pull.first]); })))
