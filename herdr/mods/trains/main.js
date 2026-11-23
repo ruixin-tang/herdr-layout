@@ -194,6 +194,9 @@ export default class Trains extends View {
     const note = this.failed ? `NS not reached: ${this.failed}` : !this.trains ? "Asking NS…" : this.trains.length ? "" : trip ? "No train gets you there in time any more." : "No trains in the coming hours.";
     const small = Boolean(shared("compact")), compact = small && !this.open;
     if (compact !== this.compact) { this.compact = compact; if (!checking()) this.fit(); }
+    // Home or not changed (a click on the weather block): hide or show at once, not at the next load.
+    const place = shared("my-work.place");
+    if (place !== this.place) { this.place = place; if (!checking()) this.fit(); }
     if (compact) {
       const list = this.trains ?? [], next = list.find((x) => !x.cancelled && x.leaves - Date.now() >= WALK) ?? list[0];
       return h_flex().id("trains").size_full().min_h(0).rounded(10).overflow_hidden().items_center().cursor_pointer().on_click((_e, cx) => { this.open = true; cx.notify(); }).bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
