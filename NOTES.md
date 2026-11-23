@@ -92,6 +92,9 @@ Outside Herdr:
   `mods/forest-sprite/fox-<mood>.svg` and the heads in front of the My work rows,
   `mods/my-work/fox-<side>.svg`: awake with a "!" (mine), asleep (someone else's), three of
   them (the team), with a star (shipped). Seen in Herdr: busy, mine and asleep.
+  The mascot moves (since 23 November 2026, native loops only): its tail is a drawing of its own
+  that sways under the body, and with open eyes it blinks (a lid in the fur's colour slides
+  down over each eye inside a small window). Seen in a burst of screenshots, busy mood.
 
 - Water (20 November 2026): the forest sprite reads the Mac's idle time every 20 seconds;
   50 minutes at the Mac without 3 minutes away makes water due (never during a meeting):

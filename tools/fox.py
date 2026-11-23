@@ -29,9 +29,11 @@ def head(mood):
             f'<path d="M12 28 Q20 30 27 38 Q30 42 32 46 Q18 44 12 28z M52 28 Q44 30 37 38 Q34 42 32 46 Q46 44 52 28z" fill="{CREAM}"/>'
             + eyes(mood) + '<ellipse cx="32" cy="38.500" rx="2.600" ry="2" fill="#2a1c16"/>' + mouth(mood))
 
+# The tail is a drawing of its own, under the body: the mod wags it (and blinks the eyes with
+# two lids in the fur's colour; EYES in its main.js follows the eyes drawn here).
+TAIL = f'<path d="M44 50 q14 2 13 -12 q-2 -6 -7 -2 q4 8 -8 8z" fill="{FUR}"/><path d="M57 38 q-2 -6 -7 -2 q2 3 1.500 6 q3 -1 5.500 -4z" fill="{CREAM}"/>'
 def fox(mood):
     return ('<ellipse cx="32" cy="59" rx="15" ry="2.500" fill="#000" opacity=".25"/>'
-            f'<path d="M44 50 q14 2 13 -12 q-2 -6 -7 -2 q4 8 -8 8z" fill="{FUR}"/><path d="M57 38 q-2 -6 -7 -2 q2 3 1.500 6 q3 -1 5.500 -4z" fill="{CREAM}"/>'
             f'<path d="M21 38 h22 q4 18 -11 19 q-15 -1 -11 -19z" fill="{FUR}"/><path d="M26 44 h12 q2 11 -6 12 q-8 -1 -6 -12z" fill="{CREAM}"/>'
             + head(mood))
 
@@ -45,6 +47,7 @@ STAR = '<path d="M52 1 l3.400 7 7.600 1 -5.600 5.200 1.400 7.600 -6.800 -3.800 -
 mods = sys.argv[1]
 for mood in ("idle", "busy", "happy", "sleep", "alert"):
     open(f"{mods}/forest-sprite/fox-{mood}.svg", "w").write(svg(fox(mood)))
+open(f"{mods}/forest-sprite/fox-tail.svg", "w").write(svg(TAIL))
 TURNS = {
     "action": big("alert") + BANG,                    # mine: wide awake
     "waiting": f'<g opacity=".7">{big("sleep")}</g>' + ZED,   # someone else's: asleep

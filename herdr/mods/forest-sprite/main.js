@@ -36,6 +36,8 @@ const DUTCH = /dutch|nederlands/i, SNOOZE = 5 * 60000;
 // window's own again.
 // Water: after SIT at the Mac without a BREAK away from it, the sprite sends me for a glass.
 const SIT = 50 * 60000, BREAK = 180000, OFFER = 300000;
+// The fox is drawn on 64 and shown at 56: one unit of the drawing, and where its eyes begin.
+const U = 56 / 64, EYES = [20, 36];
 const LAPTOP = 1800, COMPACT = [["crew", 260, 160], ["panel", 368, 312]];
 
 export default class ForestSprite extends View {
@@ -253,7 +255,13 @@ export default class ForestSprite extends View {
       .on_click((_e, cx) => { this.trainer.press(); if (m.go) { m.go(); cx.notify(); } })
       .when(Boolean(m.say), (el) => el.child(div().max_w(Math.min(m.wide ? 236 : 180, room)).px(6).py(2).rounded(6).bg(t.raised).text_size(11).text_color(t.foreground).map((el) => (m.wide ? el.whitespace_normal() : el.truncate())).child(m.say)))
       .child(h_flex().min_w(56).map((el) => (right ? el.justify_start() : el.justify_end())).child(bubble))
-      .child(div().relative().flex_none().when(m.bob > 0, (el) => el.loop("top", { from: 0, to: -4, period: m.bob }))
-        .child(image(`${ART}/fox-${m.art}.svg`).w(56).h(56)));
+      // The fox: its tail wags under the body (faster when happy or startled, not asleep), and
+      // with its eyes open it blinks. A lid in the fur's colour comes down over each eye from far
+      // above, inside a small window on the forehead, so it only shows in the last moment.
+      .child(div().relative().flex_none().w(56).h(56).when(m.bob > 0, (el) => el.loop("top", { from: 0, to: -4, period: m.bob }))
+        .when(m.art !== "sleep", (el) => el.child(image(`${ART}/fox-tail.svg`).absolute().top(0).w(56).h(56).loop("left", { from: -1.5, to: 2, period: m.art === "idle" ? 1300 : m.art === "busy" ? 900 : 450 })))
+        .child(image(`${ART}/fox-${m.art}.svg`).absolute().left(0).top(0).w(56).h(56))
+        .when(m.art === "idle" || m.art === "busy", (el) => el.children(EYES.map((x, i) => div().id(`fox-lid-${i}`).absolute().left(x * U).top(19 * U).w(8 * U).h(14 * U).overflow_hidden()
+          .child(div().absolute().left(0).w(8 * U).h(8 * U).rounded(2).bg("#f08a3c").loop("top", { from: -130 * U, to: 6 * U, period: 2600 }))))));
   }
 }
