@@ -44,6 +44,9 @@ export default class Weather extends View {
   // Says where I am, and makes the block as high as the places it shows.
   settle() {
     const place = this.atHome() ? "home" : "away";
+    // Away again: the trains block hid itself at home and does not run hidden, so wake it here.
+    // It hides again by itself when it is not its hour.
+    if (shared("my-work.place") === "home" && place === "away") run("layout.show", { id: "trains" });
     if (shared("my-work.place") !== place) setShared("my-work.place", place);
     const n = place === "home" ? PLACES.length - 1 : PLACES.length;
     run("layout.resize", { id: BLOCK, px: this.compact ? n * 28 + 8 : n * ROW + 26 });
