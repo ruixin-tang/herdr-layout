@@ -121,7 +121,18 @@ export default class ForestSprite extends View {
   // Re-read each minute; the redraw also moves the countdown on.
   loadMeetings(cx) {
     cx.spawn(async (cx) => {
-      try { this.meetings = JSON.parse((await readTextFile(MEETINGS)) ?? "{}").meetings ?? []; } catch { /* next minute */ }
+      try {
+        const cache = JSON.parse((await readTextFile(MEETINGS)) ?? "{}");
+        this.meetings = cache.meetings ?? [];
+        // The Support duty block only shows on a duty day. From here, because a hidden block does
+        // not run and could not bring itself back. Only when today's agenda says so, and only when
+        // that changes: shown by hand (layout.show) it stays until the next duty day ends.
+        const duty = Boolean(cache.duty);
+        if (shared("layout") === LAYOUT && new Date(cache.loadedAt ?? 0).toDateString() === new Date().toDateString() && duty !== this.duty) {
+          this.duty = duty;
+          run(duty ? "layout.show" : "layout.hide", { id: "support-duty" });
+        }
+      } catch { /* next minute */ }
       this.lesson();
       cx.notify();
     });
