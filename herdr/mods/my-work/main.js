@@ -1,4 +1,4 @@
-import { View, div, svg } from "gpui-kit";
+import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, readTextFile, theme, home, checking, agents, run, shared, setShared, spaces } from "herdr";
 
@@ -270,7 +270,6 @@ export default class MyWork extends View {
   }
 
   row(item, list, t) {
-    const c = item.side === "action" ? t.blocked : item.side === "shipped" ? t.ansi2 : t.muted;
     const agent = item.merged ? null : agentFor(item, list);
     // Only a ticket or a PR to review is picked up; my own PRs are not.
     const pickable = (item.ticket || item.role === "reviewer") && repoOf(item) && !agent;
@@ -284,7 +283,8 @@ export default class MyWork extends View {
       : div();
     return v_flex().flex_none().px(8).py(5).gap(2).rounded(8).hover((s) => s.bg(t.hover))
       .child(h_flex().gap(8).items_center()
-        .child(div().size(14).flex_none().rounded(7).border(1.5).border_color(c))
+        // Whose turn: awake with a "!" (mine), asleep (someone else's), three of them (the team), a star (shipped).
+        .child(image(`mods/my-work/turn-${item.side}.svg`).size(18).flex_none())
         .child(div().id(`open-${item.url}`).flex_1().min_w(0).truncate().cursor_pointer().child(item.title)
           // A PR: open it. A ticket: to its agent, or pick it up.
           .on_click((_e, cx) => { if (!item.ticket) exec("open", [item.url]); else if (agent) run("pane.focus", { pane: agent.pane }); else this.pickUp(item, cx); })))

@@ -87,6 +87,10 @@ Outside Herdr:
 
 ## Built but never seen working
 
+- My work rows start with a small sprite for whose turn it is (`mods/my-work/turn-<side>.svg`,
+  since 23 November 2026): awake with a "!" (mine), asleep (someone else's), three of them
+  (the team), with a star (shipped). Seen: mine and asleep. Not seen: team and shipped.
+
 - Water (20 November 2026): the forest sprite reads the Mac's idle time every 20 seconds;
   50 minutes at the Mac without 3 minutes away makes water due (never during a meeting):
   the sprite says so and the crew clock's sign turns into a drop, until I have been away for
