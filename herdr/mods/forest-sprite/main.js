@@ -60,6 +60,8 @@ export default class ForestSprite extends View {
           if (c === "water") setShared("water", { ...(shared("water") ?? {}), offer: Date.now() });
           // Today's lesson once more, also when it is done already (to look at the dialog).
           if (c === "lesson") { setShared("dutch", { ...(shared("dutch") ?? {}), done: false, skipped: false, watchAt: null }); this.lesson(true); }
+          // The words of the last Journaal, without a lesson.
+          if (c === "words") openOverlay({ mod: "dutch", kind: "dialog", width: Math.min((this.win?.[0] ?? 1100) - 60, 1300), height: Math.min((this.win?.[1] ?? 700) - 60, 760), props: { look: true } });
           cx.notify();
         }
       });
@@ -123,6 +125,7 @@ export default class ForestSprite extends View {
 
   // Re-read each minute; the redraw also moves the countdown on.
   loadMeetings(cx) {
+    this.words();
     cx.spawn(async (cx) => {
       try {
         const cache = JSON.parse((await readTextFile(MEETINGS)) ?? "{}");
@@ -161,6 +164,15 @@ export default class ForestSprite extends View {
     });
   }
 
+  // The word list for today's Dutch lesson (mods/dutch/words.sh), made once a day; tried again until it works.
+  words() {
+    const day = new Date().toDateString();
+    if (this.wordsDay === day || this.wordsBusy) return;
+    this.wordsBusy = true;
+    exec("sh", [`${appHome()}/mods/dutch/words.sh`, appHome()], { timeout: 120000 })
+      .then((r) => { if (r.code === 0) this.wordsDay = day; }).catch(() => null).finally(() => { this.wordsBusy = false; });
+  }
+
   // Today's Dutch lesson from the calendar, once it has started and while it is neither done nor skipped.
   lessonDue() {
     const now = Date.now(), day = new Date().toDateString(), s = shared("dutch") ?? {};
@@ -178,7 +190,7 @@ export default class ForestSprite extends View {
     // (Closed before the lesson began is not a snooze.)
     if (open || (!asked && today && (s.closedAt ?? 0) >= m.start && now - s.closedAt < SNOOZE)) return;
     // By itself it also opens the Journaal in the browser, so there is nothing to click.
-    openOverlay({ mod: "dutch", kind: "dialog", width: (this.win?.[0] ?? 1100) - 60, height: (this.win?.[1] ?? 700) - 60, props: { auto: !asked } });
+    openOverlay({ mod: "dutch", kind: "dialog", width: (this.win?.[0] ?? 1100) - 60, height: (this.win?.[1] ?? 700) - 60, props: { auto: !asked, wide: this.win?.[0] ?? 1100 } });
   }
 
   // The meeting about to start (10 minutes ahead) or just started (5 minutes in), unless quieted.
