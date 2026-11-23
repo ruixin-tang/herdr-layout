@@ -33,7 +33,10 @@ case "${CLAUDE_CODE_USE_BEDROCK:-}" in ""|0|false) ;; *) api=Bedrock ;; esac
 case "${CLAUDE_CODE_USE_VERTEX:-}" in ""|0|false) ;; *) api=Vertex ;; esac
 case "${CLAUDE_CODE_USE_FOUNDRY:-}" in ""|0|false) ;; *) api=Foundry ;; esac
 [ -n "$api" ] || ! printf '%s' "$in" | jq -e '.model.id // "" | test("(^|[.:/])anthropic\\.|arn:aws:bedrock")' >/dev/null 2>&1 || api=Bedrock
-[ -n "$api" ] || ! printf '%s' "$in" | jq -e '.rate_limits == null and (.cost.total_cost_usd // 0) > 0' >/dev/null 2>&1 || api=API
+# A session with a cost and no limits is billed by use, unless this account showed plan limits in
+# the last 8 days: a resumed plan session also has its old cost and no limits until its first reply.
+[ -n "$api" ] || jq -e '.five_hour != null and (now - .at) < 691200' "$u/claude.json" >/dev/null 2>&1 \
+  || ! printf '%s' "$in" | jq -e '.rate_limits == null and (.cost.total_cost_usd // 0) > 0' >/dev/null 2>&1 || api=API
 [ -z "$api" ] || printf '{"at":%s,"api":"%s"}\n' "$(date +%s)" "$api" > "$u/claude.json"
 printf '%s' "$in" | jq -ce 'select(.rate_limits != null) | {at: (now | floor), five_hour: .rate_limits.five_hour, seven_day: .rate_limits.seven_day}' \
   > "$u/claude.json.tmp" 2>/dev/null && mv "$u/claude.json.tmp" "$u/claude.json" || rm -f "$u/claude.json.tmp"
