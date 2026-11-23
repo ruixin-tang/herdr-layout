@@ -3,7 +3,8 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, theme, run, shared, setShared, layout, placement, readTextFile, exec, home, appHome, checking, nextCommand, openOverlay } from "herdr";
 import { Trainer } from "./shortcuts.js";
 
-// A small forest sprite that floats over the window and follows the work:
+// A small fox that floats over the window and follows the work (the mod keeps its first name,
+// from when it was a forest sprite; tools/fox.py in ~/workspace-backup draws it):
 //   I clicked what a key does -> shows that key for a few seconds (shortcuts.js); a short cheer when I used the key
 //   an agent is blocked      -> startled, an orange "!"; a click goes to that agent
 //   my Dutch lesson is due   -> opens the `dutch` dialog over the whole window when the calendar's
@@ -253,6 +254,6 @@ export default class ForestSprite extends View {
       .when(Boolean(m.say), (el) => el.child(div().max_w(Math.min(m.wide ? 236 : 180, room)).px(6).py(2).rounded(6).bg(t.raised).text_size(11).text_color(t.foreground).map((el) => (m.wide ? el.whitespace_normal() : el.truncate())).child(m.say)))
       .child(h_flex().min_w(56).map((el) => (right ? el.justify_start() : el.justify_end())).child(bubble))
       .child(div().relative().flex_none().when(m.bob > 0, (el) => el.loop("top", { from: 0, to: -4, period: m.bob }))
-        .child(image(`${ART}/${m.art}.svg`).w(56).h(56)));
+        .child(image(`${ART}/fox-${m.art}.svg`).w(56).h(56)));
   }
 }

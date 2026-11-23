@@ -283,8 +283,8 @@ export default class MyWork extends View {
       : div();
     return v_flex().flex_none().px(8).py(5).gap(2).rounded(8).hover((s) => s.bg(t.hover))
       .child(h_flex().gap(8).items_center()
-        // Whose turn: awake with a "!" (mine), asleep (someone else's), three of them (the team), a star (shipped).
-        .child(image(`mods/my-work/turn-${item.side}.svg`).size(18).flex_none())
+        // Whose turn, as a fox's head (tools/fox.py): awake with a "!" (mine), asleep (someone else's), three of them (the team), a star (shipped).
+        .child(image(`mods/my-work/fox-${item.side}.svg`).size(18).flex_none())
         .child(div().id(`open-${item.url}`).flex_1().min_w(0).truncate().cursor_pointer().child(item.title)
           // A PR: open it. A ticket: to its agent, or pick it up.
           .on_click((_e, cx) => { if (!item.ticket) exec("open", [item.url]); else if (agent) run("pane.focus", { pane: agent.pane }); else this.pickUp(item, cx); })))
