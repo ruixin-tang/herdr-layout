@@ -146,6 +146,11 @@ export default class ForestSprite extends View {
           run(duty ? "layout.show" : "layout.hide", { id: "support-duty" });
         }
       } catch { /* next minute */ }
+      // The trains block hides itself at home and outside its hours, and hidden it does not run,
+      // so it cannot come back by itself either (it stayed away after "not at home" until a
+      // restart). In its hours, away from home, show it: from there it looks after itself.
+      const clock = new Date().toTimeString().slice(0, 5), seek = (n, id) => n && (n.id === id ? n : (n.children ?? []).map((c) => seek(c, id)).find(Boolean));
+      if (shared("layout") === LAYOUT && clock >= "15:00" && clock < "18:30" && shared("my-work.place") !== "home" && seek(layout(), "trains")?.hidden) run("layout.show", { id: "trains" });
       this.lesson();
       cx.notify();
     });

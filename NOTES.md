@@ -124,6 +124,7 @@ Outside Herdr:
 - The crew strip's clock is a wooden Stardew-style box (day, 24-hour time with seconds, season sign
   `mods/crew/clock-<scene>.svg`); only the orchard sign was seen.
 
+- The trains block could not come back after it hid itself (a hidden block does not run): the sprite now shows it again between 15:00 and 18:30 when away from home (23 November, seen). Still open: an appointment trip outside those hours cannot bring a hidden block back.
 - Dutch, 23 November: seen are the words-only view, the morning quiz's first question, and the word cover as a picture. Not seen: a whole lesson in either form (office, home with quiz and Xitun), a click on a quiz answer, closing the Chrome window before the quiz, the cover on the real second screen, the morning quiz opening by itself, the sprite's word bubble, the "+1" click opening Xitun.
 - Lamps and light strings in the strip (sky.js `lamp`, `string`; on when the sun is down by the weather mod's sunset): seen in the orchard at night only. Valley, beach (with the lighthouse beam) and ski ran without errors but were not looked at; unlit lamp posts by day not seen.
 - The Dutch lesson dialog: the snooze and "Niet vandaag". The 8 minutes and the streak
