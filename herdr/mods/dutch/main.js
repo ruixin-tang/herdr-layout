@@ -4,71 +4,144 @@ import { exec, theme, checking, shared, setShared, props, closeOverlay, notify, 
 
 // The Dutch lesson, as a dialog over the whole window: every day my calendar has a
 // "Dutch" event, the forest sprite opens this when it starts, and it stays in the way
-// until I have watched the NOS Journaal in Makkelijke Taal.
+// until the lesson is over. How much that is depends on where I am (the weather mod knows):
+//   at the office   the NOS Journaal in Makkelijke Taal, WATCH minutes: I have a train to catch
+//   at home         the whole Journaal, then QUIZ of its words (each one until I have it right),
+//                   then LISTEN minutes of a slow podcast on Xitun
 //   by itself       however it is opened, the Journaal opens at once in a new Chrome window
 //                   over the middle of this dialog: nothing to click. It is the last episode
-//                   from before today, and its hard words stand left and right of the video in
-//                   the order they are said (words.sh, run by the sprite). Every other screen goes
-//                   dark (cover.swift). WATCH minutes later the day counts as done, the streak
-//                   grows and the workspace and the screens come back
+//                   from before today, and its hard words (words.sh, run by the sprite) stand
+//                   beside the video in the order they are said. Every other screen is covered
+//                   (cover.swift) and shows the same word list, large. When the lesson is over
+//                   the streak grows and the workspace and the screens come back
 //   Esc             only snoozes: the sprite opens it again a few minutes later
 //   "Niet vandaag"  asks twice, then lets me go and ends the streak
-// The state is shared as "dutch": { day, openedAt, closedAt, watchAt, done, skipped, streak, last }.
+//   props.refresh   the next morning (the sprite): REFRESH of yesterday's words as a quiz, the
+//                   ones I had wrong first. No video, nothing covered, Esc is fine
+//   props.look      only the list, with the sentences (the sprite's "words" command)
+// The state is shared as "dutch": { day, openedAt, closedAt, watchAt, watchMs, plan, stage,
+// stageAt, done, skipped, streak, last, learned, missed, refreshed, refreshAsked }.
 // The list of episodes, for when there is no word list (which knows the episode itself).
 const URL = "https://npo.nl/start/serie/nos-journaal-in-makkelijke-taal/afleveringen";
-const WATCH = 8 * 60000;
-// cover.swift, built into data/dutch/cover when the source is newer. "news" lays the Journaal
-// over the dialog (plain `open` if that fails), "dark" covers the other screens, "stop" ends that.
+// Dutch Today (slow, about 6 minutes an episode, text and translation with it).
+const LISTEN_URL = "https://xitun.ltd/my/nl/daily-listening?view=show&source=1f221b58-74bf-4adc-a2c3-64799ea612c1";
+const WATCH = 8 * 60000, LISTEN = 6 * 60000, QUIZ = 5, REFRESH = 8;
+const WORDS = () => `${appHome()}/data/dutch/words.json`, LEARNED = () => `${appHome()}/data/dutch/learned.json`;
+// cover.swift, built into data/dutch/cover when the source is newer. "news" lays a page over the
+// dialog (plain `open` if that fails), "close" takes it away, "dark" covers the other screens
+// (one cover at a time), "stop" ends that.
 const cover = (...args) => exec("sh", ["-c", `src="$1/mods/dutch/cover.swift"; bin="$1/data/dutch/cover"; shift
-  [ "$1" = news ] || pkill -f "[d]ata/dutch/cover dark"; [ "$1" = stop ] && exit 0
+  case "$1" in dark|stop) pkill -f "[d]ata/dutch/cover dark";; esac; [ "$1" = stop ] && exit 0
   [ "$bin" -nt "$src" ] || { mkdir -p "$(dirname "$bin")" && swiftc -O "$src" -o "$bin"; } || { [ "$1" = news ] && open "$2"; exit 1; }
-  "$bin" "$@" || { [ "$1" = news ] && open "$2"; }`, "sh", appHome(), ...args.map(String)], { timeout: 600000 }).catch(() => null);
+  "$bin" "$@" || { [ "$1" = news ] && open "$2"; }`, "sh", appHome(), ...args.map(String)], { timeout: 1200000 }).catch(() => null);
 const clock = (at) => new Date(at).toTimeString().slice(0, 5);
+const mmss = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 // The working day before a day, as a date string: a streak runs over the weekend.
 const before = (day) => { const d = new Date(day); do d.setDate(d.getDate() - 1); while (d.getDay() % 6 === 0); return d.toDateString(); };
+const shuffled = (list) => list.map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
+const meaning = (x) => [x.zh, x.en].filter(Boolean).join(" · ");
+const load = async (path) => { try { return JSON.parse(await readTextFile(path)); } catch { return null; } };
 
 export default class Dutch extends View {
   init(_props, cx) {
-    this.armed = false;
+    this.armed = false; this.quiz = null;
     if (checking()) return;
-    // Only the words (the sprite's "words" command): no lesson, no video, no dark screens.
-    if (props()?.look) {
-      cx.spawn(async (cx) => { try { this.words = JSON.parse(await readTextFile(`${appHome()}/data/dutch/words.json`)); } catch { this.words = null; } cx.notify(); });
+    // Only the words: no lesson, no video, no covered screens.
+    if (props()?.look) { cx.spawn(async (cx) => { this.words = await load(WORDS()); cx.notify(); }); return; }
+    if (props()?.refresh) {
+      this.set({ refreshAsked: new Date().toDateString() });
+      cx.spawn(async (cx) => { this.words = await load(LEARNED()); this.ask(REFRESH, shared("dutch")?.missed ?? []); cx.notify(); });
       return;
     }
     const day = new Date().toDateString(), was = shared("dutch") ?? {};
-    // A new day starts clean; the streak and its last day come along.
-    this.set(was.day === day ? { openedAt: Date.now() } : { day, openedAt: Date.now(), closedAt: 0, watchAt: null, done: false, skipped: false });
-    const fresh = !shared("dutch")?.watchAt;
-    if (fresh) this.set({ watchAt: Date.now() });
-    const left = WATCH - (Date.now() - shared("dutch").watchAt);
-    if (!shared("dutch").done && left > 0) cover("dark", Math.ceil(left / 1000) + 2);
+    // A new day starts clean; the streak, its last day and yesterday's words come along.
+    this.set(was.day === day ? { openedAt: Date.now() } : { day, openedAt: Date.now(), closedAt: 0, watchAt: null, stage: null, stageAt: 0, plan: null, done: false, skipped: false });
     cx.spawn(async (cx) => {
-      try { this.words = JSON.parse(await readTextFile(`${appHome()}/data/dutch/words.json`)); } catch { this.words = null; }
-      if (fresh) cover("news", this.words?.url ?? URL);
+      this.words = await load(WORDS());
+      if (!shared("dutch")?.watchAt) {
+        const plan = shared("my-work.place") === "home" ? "home" : "office";
+        // At home to the end of the episode (and a little for the page to start), else the fixed time.
+        this.set({ watchAt: Date.now(), stage: "watch", plan, watchMs: plan === "home" && this.words?.seconds ? (this.words.seconds + 20) * 1000 : WATCH });
+        cover("news", this.words?.url ?? URL);
+      }
+      this.enter();
       cx.notify();
     });
-    // The countdown, and the end of the lesson.
+    // The countdown, and the step to the next part.
     cx.timer.every(1000, (cx) => {
-      const s = shared("dutch") ?? {};
-      if (s.watchAt && !s.done && Date.now() - s.watchAt >= WATCH) this.finish();
+      const s = shared("dutch") ?? {}, now = Date.now();
+      if (!s.done && s.stage === "watch" && s.watchAt && now - s.watchAt >= (s.watchMs ?? WATCH)) {
+        if (s.plan === "home" && (this.words?.words?.length ?? 0) >= 4) { this.set({ stage: "quiz" }); cover("close"); this.enter(); }
+        else this.finish();
+      }
+      if (!s.done && s.stage === "listen" && now - s.stageAt >= LISTEN) this.finish();
       cx.notify();
     });
   }
 
   set(change) { setShared("dutch", { ...(shared("dutch") ?? {}), ...change }); }
 
+  // What the part I am in needs, also when the dialog comes back after a snooze: the other
+  // screens covered for as long as it lasts (with the words only while the Journaal plays).
+  enter() {
+    const s = shared("dutch") ?? {}, now = Date.now(), secs = (ms) => Math.ceil(ms / 1000) + 2;
+    if (s.done) return;
+    if (s.stage === "watch" && s.watchAt + (s.watchMs ?? WATCH) > now) cover("dark", secs(s.watchAt + (s.watchMs ?? WATCH) - now), WORDS());
+    if (s.stage === "quiz") { cover("dark", 900); if (!this.quiz) this.ask(QUIZ, []); }
+    if (s.stage === "listen" && s.stageAt + LISTEN > now) cover("dark", secs(s.stageAt + LISTEN - now));
+  }
+
+  // A quiz of n words from the list, the ones in `first` before the others.
+  ask(n, first) {
+    const all = this.words?.words ?? [];
+    if (all.length < 4) { this.quiz = null; return; }
+    const items = [...shuffled(all.filter((x) => first.includes(x.nl))), ...shuffled(all.filter((x) => !first.includes(x.nl)))].slice(0, n);
+    this.quiz = { all, items, total: items.length, i: 0, wrong: false, missed: [] };
+    this.choices();
+  }
+
+  choices() {
+    const q = this.quiz, word = q.items[q.i];
+    q.options = shuffled([word, ...shuffled(q.all.filter((x) => x.nl !== word.nl && meaning(x) !== meaning(word))).slice(0, 3)]);
+  }
+
+  // Wrong: the answer is shown and the word comes back at the end.
+  answer(option) {
+    const q = this.quiz, word = q.items[q.i];
+    if (option.nl === word.nl) return this.next();
+    if (!q.missed.includes(word.nl)) q.missed.push(word.nl);
+    q.items.push(word); q.wrong = true;
+  }
+
+  next() {
+    const q = this.quiz;
+    q.i += 1; q.wrong = false;
+    if (q.i < q.items.length) return this.choices();
+    this.quiz = null;
+    if (props()?.refresh) {
+      this.set({ refreshed: new Date().toDateString(), missed: q.missed });
+      notify({ title: "Goed zo!", body: q.missed.length ? `Nog lastig: ${q.missed.join(", ")}.` : "Alle woorden van gisteren zitten erin.", level: "success", timeout: 8000 });
+      return closeOverlay(props().overlay);
+    }
+    // The lesson at home goes on: Xitun over the dialog.
+    this.set({ missed: q.missed, stage: "listen", stageAt: Date.now() });
+    cover("news", LISTEN_URL);
+    this.enter();
+  }
+
   finish() {
     const s = shared("dutch") ?? {}, day = new Date().toDateString();
     const streak = s.last === before(day) ? (s.streak ?? 0) + 1 : s.last === day ? s.streak ?? 1 : 1;
-    this.set({ done: true, streak, last: day });
+    this.set({ done: true, streak, last: day, learned: this.words ? day : s.learned });
     cover("stop");
-    notify({ title: "Goed gedaan!", body: `Journaal gekeken. Reeks: ${streak} ${streak === 1 ? "dag" : "dagen"}.`, level: "success", timeout: 8000 });
+    // Today's words, for tomorrow morning and for the sprite during the day.
+    if (this.words) exec("cp", [WORDS(), LEARNED()]).catch(() => null);
+    notify({ title: "Goed gedaan!", body: `${s.plan === "home" ? "Journaal, woorden en luisteren" : "Journaal gekeken"}. Reeks: ${streak} ${streak === 1 ? "dag" : "dagen"}.`, level: "success", timeout: 8000 });
     closeOverlay(props().overlay);
   }
 
   // Esc, or anything else that closes it: the sprite reads this as a snooze. The other screens come back.
-  async close() { if (props()?.look) return; this.set({ closedAt: Date.now() }); cover("stop"); }
+  async close() { if (props()?.look || props()?.refresh) return; this.set({ closedAt: Date.now() }); cover("stop"); }
 
   button(id, label, t, fn) {
     return div().id(id).px(10).py(4).rounded(8).cursor_pointer().flex_none().text_size(11).text_color(t.dim)
@@ -85,6 +158,24 @@ export default class Dutch extends View {
       .child(div().text_size(11).text_color(t.muted).child(x.en ?? ""))));
   }
 
+  // One question: the word, the sentence it was said in, four meanings.
+  question(t) {
+    const q = this.quiz;
+    if (!q) return div().text_size(14).text_color(t.muted).child("Geen woordenlijst.");
+    const word = q.items[q.i];
+    return v_flex().w(560).gap(12).items_center()
+      .child(div().text_size(12).text_color(t.dim).child(`${Math.min(q.i + 1, q.total)} van ${q.total}${q.items.length > q.total ? `, en ${q.items.length - Math.max(q.i, q.total)} opnieuw` : ""}`))
+      .child(div().text_size(34).font_semibold().text_color(t.accent).child(word.nl))
+      .child(div().w_full().text_size(13).text_color(t.muted).text_center().whitespace_normal().child(word.zin ?? ""))
+      .when(!q.wrong, (el) => el.child(v_flex().w_full().gap(8).pt(8).children(q.options.map((o, i) => div().id(`dutch-option-${q.i}-${i}`).w_full().px(16).py(10).rounded(10).cursor_pointer()
+        .border_1().border_color(t.border).text_size(15).hover((s) => s.bg(t.hover)).on_click((_e, cx) => { this.answer(o); cx.notify(); }).child(meaning(o))))))
+      .when(q.wrong, (el) => el.child(v_flex().w_full().gap(10).pt(8).items_center()
+        .child(div().text_size(13).text_color(t.blocked).child("Niet goed. Het is:"))
+        .child(div().text_size(20).font_semibold().child(meaning(word)))
+        .child(div().id("dutch-on").px(18).py(8).rounded(10).cursor_pointer().bg(t.accent).text_color(t.accent_foreground).text_size(13).font_semibold()
+          .on_click((_e, cx) => { this.next(); cx.notify(); }).child("Verder (het woord komt terug)"))));
+  }
+
   render() {
     const t = theme(), s = shared("dutch") ?? {}, streak = s.streak ?? 0, now = Date.now();
     // Looking only: the whole list, each word with the sentence it was said in.
@@ -95,29 +186,39 @@ export default class Dutch extends View {
         .child(div().w(210).flex_none().text_size(15).font_semibold().text_color(t.accent).child(x.nl))
         .child(div().w(250).flex_none().text_size(12).child(`${x.zh ?? ""}  ${x.en ?? ""}`))
         .child(div().flex_1().min_w_0().truncate().text_size(12).text_color(t.muted).child(x.zin ?? ""))));
+    if (props()?.refresh) return v_flex().id("dutch").size_full().items_center().justify_center().gap(22).bg(t.popover).text_color(t.foreground)
+      .child(div().text_size(16).text_color(t.muted).child(`Goedemorgen! Eerst de woorden van het Journaal van ${this.words?.date ?? "gisteren"}.`))
+      .child(this.question(t))
+      .child(div().text_size(11).text_color(t.dim).child("Esc: nu niet"));
     const kept = streak > 0 && (s.last === new Date().toDateString() || s.last === before(new Date().toDateString()));
-    const left = s.watchAt ? Math.max(0, WATCH - (now - s.watchAt)) : 0;
-    // The Journaal lies over the middle (cover.swift decides how wide), so the words get what is
+    const stage = s.stage ?? "watch", home = s.plan === "home";
+    const until = stage === "listen" ? s.stageAt + LISTEN : (s.watchAt ?? now) + (s.watchMs ?? WATCH), left = Math.max(0, until - now);
+    const line = stage === "quiz" ? "Kies de goede betekenis. Daarna 6 minuten luisteren."
+      : stage === "listen" ? `Luisteren op Xitun. Je werk komt terug om ${clock(until)} (nog ${mmss(left)}).`
+      : home ? `Tot ${clock(until)} (nog ${mmss(left)}), daarna ${QUIZ} woorden en 6 minuten luisteren.`
+      : `Je werk komt terug om ${clock(until)} (nog ${mmss(left)}).`;
+    // A page lies over the middle (cover.swift decides how wide), so the words get what is
     // left beside it and everything else sits in a strip at the bottom.
-    const wide = props()?.wide ?? 1100, side = Math.floor((wide - Math.min(wide - 80, Math.max(900, wide * 0.7))) / 2) - 30;
-    const words = side >= 150 ? this.words?.words ?? [] : [], half = Math.ceil(words.length / 2);
+    const wide = props()?.wide ?? 1100, side = Math.max(0, Math.floor((wide - Math.min(wide - 80, Math.max(900, wide * 0.7))) / 2) - 30);
+    const words = stage === "watch" && side >= 150 ? this.words?.words ?? [] : [], half = Math.ceil(words.length / 2);
     return v_flex().id("dutch").size_full().bg(t.popover).text_color(t.foreground)
-      .child(h_flex().flex_1().min_h_0().w_full().justify_between()
-        .child(this.column(words.slice(0, half), Math.max(side, 0), t))
-        .child(this.column(words.slice(half), Math.max(side, 0), t)))
+      .child(stage === "quiz" ? v_flex().flex_1().min_h_0().w_full().items_center().justify_center().child(this.question(t))
+        : h_flex().flex_1().min_h_0().w_full().justify_between()
+          .child(this.column(words.slice(0, half), side, t))
+          .child(this.column(words.slice(half), side, t)))
       .child(v_flex().flex_none().items_center().pb(22).gap(6)
-      .child(h_flex().gap(12).items_baseline()
-        .child(div().text_size(20).font_semibold().child(s.watchAt ? "Veel kijkplezier!" : "Tijd voor Nederlands"))
-        .child(div().text_size(14).text_color(t.muted).child(`Je werk komt terug om ${clock((s.watchAt ?? now) + WATCH)} (nog ${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, "0")}).`))
-        .child(div().text_size(13).text_color(kept ? t.accent : t.dim).child(kept ? `Reeks: ${streak} ${streak === 1 ? "dag" : "dagen"} achter elkaar` : "Vandaag begint een nieuwe reeks.")))
-      .child(h_flex().gap(16).items_center()
-        .child(this.button("dutch-again", "Open het Journaal opnieuw", t, () => { cover("news", this.words?.url ?? URL); }))
-        .child(div().text_size(11).text_color(t.dim).child("Esc: over 5 minuten opnieuw (snooze)"))
-        .child(this.button("dutch-skip", this.armed ? (kept ? `Zeker? Je reeks van ${streak} stopt. Klik nog een keer.` : "Zeker? Klik nog een keer.") : "Niet vandaag (skip)", t, (_e, cx) => {
-          if (!this.armed) { this.armed = true; cx.notify(); return; }
-          this.set({ skipped: true, streak: 0 });
-          cover("stop");
-          closeOverlay(props().overlay);
-        }))));
+        .child(h_flex().gap(12).items_baseline()
+          .child(div().text_size(20).font_semibold().child(stage === "quiz" ? "Wat betekent het?" : stage === "listen" ? "Goed luisteren!" : s.watchAt ? "Veel kijkplezier!" : "Tijd voor Nederlands"))
+          .child(div().text_size(14).text_color(t.muted).child(line))
+          .child(div().text_size(13).text_color(kept ? t.accent : t.dim).child(kept ? `Reeks: ${streak} ${streak === 1 ? "dag" : "dagen"} achter elkaar` : "Vandaag begint een nieuwe reeks.")))
+        .child(h_flex().gap(16).items_center()
+          .when(stage !== "quiz", (el) => el.child(this.button("dutch-again", stage === "listen" ? "Open Xitun opnieuw" : "Open het Journaal opnieuw", t, () => { cover("news", stage === "listen" ? LISTEN_URL : this.words?.url ?? URL); })))
+          .child(div().text_size(11).text_color(t.dim).child("Esc: over 5 minuten opnieuw (snooze)"))
+          .child(this.button("dutch-skip", this.armed ? (kept ? `Zeker? Je reeks van ${streak} stopt. Klik nog een keer.` : "Zeker? Klik nog een keer.") : "Niet vandaag (skip)", t, (_e, cx) => {
+            if (!this.armed) { this.armed = true; cx.notify(); return; }
+            this.set({ skipped: true, streak: 0 });
+            cover("stop");
+            closeOverlay(props().overlay);
+          }))));
   }
 }

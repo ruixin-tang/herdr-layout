@@ -1,7 +1,7 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { agents, terminals, theme, run, shared, layout, appHome, readTextFile, exec, checking, nextCommand, setShared } from "herdr";
-import { mix, light, heaven as sky_ } from "./sky.js";
+import { mix, light, lamp, heaven as sky_ } from "./sky.js";
 import { land } from "./scenes.js";
 
 // The crew on a mountain seen from the side, in a strip above the terminals.
@@ -43,7 +43,7 @@ import { land } from "./scenes.js";
 // the figures are <season>-<colour>-<pose>.svg (crew-gen.py and crew-resort.py made them).
 const ART = "mods/crew", SCENES = "data/crew-scene";
 // Raise this when the mountain is drawn differently: a saved picture is reused by its name.
-const DRAWING = 6;
+const DRAWING = 7;
 const H = 260, SIZE = 56, STEP = 3000;
 // The compact strip's height against the full one's.
 const SMALLER = 160 / 260;
@@ -133,6 +133,8 @@ function mountain(W, look, cafe, sky, now) {
     + band(0, L.bands[0]) + band(22, L.bands[1]) + band(54, L.bands[2])
     + [[620, 1], [645, 0.8], [672, 1.1], [790, 0.9], [815, 1.1], [1165, 0.8], [1250, 1], [1276, 0.85], [1470, 1]].map(([x, s]) => tree(x, s)).join("")
     + `<path d="${path(profile)}" stroke="${L.edge[0]}" stroke-width="${L.edge[1]}" fill="none" stroke-linejoin="round"/>${marks}${cable.slice(1, -1).map(pylon).join("")}`
+    // Floodlights down the piste and one by the queue: on from sunset to sunrise.
+    + [560, 720, 900, 1110, 1320].map((x) => lamp(f(x), Math.round(ground(f(x))) + 1, lit)).join("") + lamp(QUEUE - 60, VALLEY, lit)
     + `<g transform="translate(${STATION},${VALLEY - 84}) scale(1.2)">${roofed(STATION_ART)}</g><g transform="translate(${W - 128},${SUMMIT - 70})">${roofed(STATION_ART)}</g>`
     + `<g transform="translate(8,${VALLEY - 90})">${roofed(cafe)}</g>`
     + `<path d="${path(cable)}" stroke="#a9bcc2" stroke-width="2" fill="none"/><path d="M${QUEUE - 26} 232 V190" stroke="#d9d4c0" stroke-width="2"/><path d="M${QUEUE - 26} 191 l-14 5 14 5z" fill="#ff9a3c"/></svg>`;
@@ -216,7 +218,7 @@ export default class Crew extends View {
         const width = Math.round(shown / k);
         const sky = shared("weather.sky") ?? null, now = Date.now();
         // A new picture every ten minutes, and when rain starts or stops.
-        const look = this.preview ?? season(), key = `${look}-${width}-${DRAWING}-${Math.floor(now / 600000)}${(sky?.mm ?? 0) >= 0.1 ? "w" : "d"}`;
+        const look = this.preview ?? season(), key = `${look}-${width}-${DRAWING}-${Math.floor(now / 600000)}${(sky?.mm ?? 0) >= 0.1 ? "w" : "d"}${light(sky, now).day ? "" : "n"}`;
         if (this.scene?.key !== key) {
           const cafe = (await readTextFile(`${appHome()}/${ART}/ski-cafe.svg`)).trim().replace(/^<svg[^>]*>|<\/svg>$/g, "");
           const m = look === "ski" || look === "alp" ? mountain(width, look, cafe, sky, now) : land(width, look, cafe, sky, light(sky, now));

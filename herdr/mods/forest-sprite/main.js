@@ -36,6 +36,11 @@ const DUTCH = /dutch|nederlands/i, SNOOZE = 5 * 60000;
 // window's own again.
 // Water: after SIT at the Mac without a BREAK away from it, the sprite sends me for a glass.
 const SIT = 50 * 60000, BREAK = 180000, OFFER = 300000;
+// Back from a water break, the glass comes with 20 word cards on Xitun (my A1-A2 book).
+const CARDS = "https://xitun.ltd/my/nl/contents?tab=vocabulary&book_id=de92d086-b370-4c9e-a7f3-a20337a79f4e&mode=study";
+// The words of my last Dutch lesson: one of them shows for a minute every WORD_EVERY minutes
+// when nothing else is up, and in the morning (before REFRESH_UNTIL o'clock) they come as a quiz.
+const WORD_EVERY = 20, REFRESH_UNTIL = 12;
 // The fox is drawn on 64 and shown at 56: one unit of the drawing, and where its eyes begin.
 const U = 56 / 64, EYES = [20, 36];
 const LAPTOP = 1800, COMPACT = [["crew", 260, 160], ["panel", 368, 312]];
@@ -61,6 +66,7 @@ export default class ForestSprite extends View {
           // Today's lesson once more, also when it is done already (to look at the dialog).
           if (c === "lesson") { setShared("dutch", { ...(shared("dutch") ?? {}), done: false, skipped: false, watchAt: null }); this.lesson(true); }
           // The words of the last Journaal, without a lesson.
+          if (c === "refresh") this.refresh(true);
           if (c === "words") openOverlay({ mod: "dutch", kind: "dialog", width: Math.min((this.win?.[0] ?? 1100) - 60, 1300), height: Math.min((this.win?.[1] ?? 700) - 60, 760), props: { look: true } });
           cx.notify();
         }
@@ -126,6 +132,7 @@ export default class ForestSprite extends View {
   // Re-read each minute; the redraw also moves the countdown on.
   loadMeetings(cx) {
     this.words();
+    readTextFile(`${appHome()}/data/dutch/learned.json`).then((text) => { this.learned = JSON.parse(text).words ?? []; }).catch(() => { this.learned = []; }).then(() => this.refresh());
     cx.spawn(async (cx) => {
       try {
         const cache = JSON.parse((await readTextFile(MEETINGS)) ?? "{}");
@@ -171,6 +178,16 @@ export default class ForestSprite extends View {
     this.wordsBusy = true;
     exec("sh", [`${appHome()}/mods/dutch/words.sh`, appHome()], { timeout: 120000 })
       .then((r) => { if (r.code === 0) this.wordsDay = day; }).catch(() => null).finally(() => { this.wordsBusy = false; });
+  }
+
+  // Yesterday's words as a quiz, first thing: once by itself on a day after a lesson, in the
+  // morning and not into a meeting. Esc is fine; `forest-sprite.refresh` asks again.
+  refresh(asked = false) {
+    const s = shared("dutch") ?? {}, now = new Date(), day = now.toDateString();
+    if (!(this.learned ?? []).length || (!asked && shared("layout") !== LAYOUT)) return;
+    const due = s.learned && s.learned !== day && s.refreshed !== day && s.refreshAsked !== day && now.getHours() < REFRESH_UNTIL;
+    if (!asked && (!due || this.meetings.some((m) => m.start - SOON < now && now < m.end))) return;
+    openOverlay({ mod: "dutch", kind: "dialog", width: 760, height: 620, props: { refresh: true } });
   }
 
   // Today's Dutch lesson from the calendar, once it has started and while it is neither done nor skipped.
@@ -224,8 +241,8 @@ export default class ForestSprite extends View {
     // Sitting too long: it only goes away when I have been away from the Mac for a few minutes.
     const water = shared("water") ?? {};
     if (water.due) return { art: "alert", bubble: "H2O", color: "accent", say: `You have been sitting for ${Math.round((Date.now() - water.since) / 60000)} minutes. Go get some water.`, tip: "Goes away once you have been away for 3 minutes", bob: 800, wide: true, go: null };
-    if (water.offer && Date.now() - water.offer < OFFER) return { art: "happy", bubble: "+1", color: "done", say: "Welcome back. Did you drink? Click to add a glass.", tip: "Click: one more glass", bob: 900, wide: true,
-      go: () => { const w = shared("water") ?? {}; setShared("water", { ...w, glasses: (w.glasses ?? 0) + 1, offer: 0 }); } };
+    if (water.offer && Date.now() - water.offer < OFFER) return { art: "happy", bubble: "+1", color: "done", say: "Welcome back. Did you drink? Click to add a glass, and do 20 woorden.", tip: "Click: one more glass, and Xitun opens for 20 word cards", bob: 900, wide: true,
+      go: () => { const w = shared("water") ?? {}; setShared("water", { ...w, glasses: (w.glasses ?? 0) + 1, offer: 0 }); exec("open", [CARDS]); } };
     // Morning start ran by itself (the dev-servers mod, at my first session): a click opens its brief.
     const today = new Date().toDateString(), morning = shared("morning");
     if (morning?.day === today && morning.auto && shared("morning.seen") !== today)
@@ -243,6 +260,9 @@ export default class ForestSprite extends View {
       this.see(todo);
       run("layout.select", { stack: "panel-body", child: "my-work" }); run("layout.show", { id: "panel" });
     } };
+    // A word from my last lesson: hover to see whether I still know it.
+    const minute = Math.floor(Date.now() / 60000), word = (this.learned ?? [])[Math.floor(minute / WORD_EVERY) % Math.max(1, (this.learned ?? []).length)];
+    if (word && minute % WORD_EVERY === 0) return { art: "idle", bubble: "NL", color: "accent", say: word.nl, tip: [word.zh, word.en].filter(Boolean).join(" · "), bob: 1200, go: null };
     const done = list.find((a) => a.status === "done");
     if (done) return { art: "happy", bubble: "✓", color: "done", tip: done.title, bob: 900, go: () => run("pane.focus", { pane: done.pane }) };
     const working = list.filter((a) => a.status === "working").length;

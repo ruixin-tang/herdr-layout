@@ -1,4 +1,4 @@
-import { heaven } from "./sky.js";
+import { heaven, lamp, string } from "./sky.js";
 
 // The three scenes that are not the mountain, each drawn as wide as the strip:
 //   valley  (April to June)        a café, a shipping bin, a field, and a mine in the cliff
@@ -12,7 +12,7 @@ import { heaven } from "./sky.js";
 //   steam   whether the idle ones' drink steams
 //   empty   what to say when there is nobody
 // Everybody stays on the ground (or the water): the ladder, the hoe and the boat are
-// part of the figures' drawings.
+// part of the figures' drawings. From sunset to sunrise the lamps burn (`lit`, sky.js).
 const H = 260, G = 232;
 // n + 1 places at equal steps from a to b.
 const spread = (a, b, n) => Array.from({ length: n + 1 }, (_, i) => Math.round(a + ((b - a) * i) / n));
@@ -27,7 +27,7 @@ const ground = (W, top, low, edge) => `<rect y="${G}" width="${W}" height="${H -
 const tree = (x, crown, r, fruit) => `<rect x="${x - 3}" y="${G - 36}" width="6" height="36" fill="#5a3f30"/><circle cx="${x}" cy="${G - 36 - r * 0.7}" r="${r}" fill="${crown}"/><circle cx="${x - r * 0.3}" cy="${G - 36 - r * 0.95}" r="${r * 0.5}" fill="#ffffff" opacity=".1"/>`
   + (fruit ? [[-0.5, -0.2], [0.15, -0.5], [0.5, 0.15], [-0.15, 0.3], [0, -0.05]].map(([dx, dy]) => `<circle cx="${x + dx * r}" cy="${G - 36 - r * 0.7 + dy * r}" r="3.2" fill="${fruit}"/>`).join("") : "");
 
-function valley(W, S, cafe) {
+function valley(W, S, cafe, lit) {
   const mine = W - 190, field = [620, Math.round(W * 0.56)];
   const out = spread(540, mine - 46, 12), back = spread(mine - 46, 540, 12);
   const rows = [];
@@ -49,7 +49,8 @@ function valley(W, S, cafe) {
     + house(cafe, S("#b0563f"))
     // The shipping bin, where the done ones wait.
     + `<rect x="326" y="${G - 26}" width="40" height="26" rx="3" fill="${S("#8a5a36")}"/><rect x="322" y="${G - 32}" width="48" height="9" rx="3" fill="${S("#a9703f")}"/><rect x="342" y="${G - 18}" width="8" height="6" rx="1" fill="#ffd166"/>`
-    + `<rect x="${field[0]}" y="${G - 5}" width="${field[1] - field[0]}" height="10" rx="3" fill="${S("#6b4a36")}"/>${rows.join("")}${blossom.join("")}`;
+    + `<rect x="${field[0]}" y="${G - 5}" width="${field[1] - field[0]}" height="10" rx="3" fill="${S("#6b4a36")}"/>${rows.join("")}${blossom.join("")}`
+    + [470, field[1] + 44, mine - 210].map((x) => lamp(x, G, lit)).join("") + string(96, 300, G - 74, lit);
   return {
     svg, start: 520, queue: 398, stuck: "stuck", steam: true, empty: "Nobody in the valley: start an agent and it heads for the field.",
     lift: out.map((x, i) => [x, G, i >= 11 ? "mine" : x > field[0] && x < field[1] ? "hoe" : "walk"]),
@@ -57,7 +58,7 @@ function valley(W, S, cafe) {
   };
 }
 
-function beach(W, S, cafe) {
+function beach(W, S, cafe, lit) {
   const sea = G - 62, buoy = W - 300, pier = [330, 600];
   const out = spread(680, buoy - 40, 12), back = spread(buoy - 40, 680, 12);
   const waves = Array.from({ length: Math.round(W / 50) }, (_, i) => `<path d="M${(i * 211) % W} ${sea + 8 + ((i * 37) % (H - sea - 12))} h18" stroke="${S("#d8f1fb")}" stroke-width="2" stroke-linecap="round" opacity=".6"/>`).join("");
@@ -73,7 +74,10 @@ function beach(W, S, cafe) {
     + [40, 96, 150, 214].map((x) => `<path d="M${x} ${sea - 14 + (x % 20)} q-3 -14 2 -20 M${x + 5} ${sea - 13 + (x % 20)} q4 -12 9 -16" stroke="${S("#7fae4a")}" stroke-width="2" fill="none"/>`).join("")
     + `<path d="M0 ${G - 2} H400 Q470 ${G + 8} 520 ${H} H0z" fill="${S("#f3dfa6")}"/><path d="M0 ${G - 2} H400 Q470 ${G + 8} 520 ${H}" stroke="${S("#fff3cf")}" stroke-width="4" fill="none"/>`
     + `${posts}<rect x="${pier[0]}" y="${G - 1}" width="${pier[1] - pier[0]}" height="9" rx="2" fill="${S("#a9703f")}"/>`
-    + house(cafe, S("#e0624a"));
+    + house(cafe, S("#e0624a"))
+    // Lamps on the pier, lights on the café, and the lighthouse sweeps over the water.
+    + [pier[0] + 16, Math.round((pier[0] + pier[1]) / 2), pier[1] - 22].map((x) => lamp(x, G - 1, lit, 40)).join("") + string(96, 300, G - 74, lit)
+    + (lit.day ? "" : `<path d="M${W - 168} ${G - 170} L${W - 620} ${G - 120} V${G - 60}z" fill="#ffe7ad" opacity="${(0.1 + 0.12 * lit.night).toFixed(3)}"/>`);
   return {
     svg, start: pier[1] - 22, queue: 384, stuck: "adrift", steam: false, empty: "Nobody on the beach: start an agent and it sets sail.",
     // Out on the far lane, back on the near one, so boats pass each other.
@@ -82,7 +86,7 @@ function beach(W, S, cafe) {
   };
 }
 
-function orchard(W, S, cafe) {
+function orchard(W, S, cafe, lit) {
   // Six trees to pick from: it walks up to each, then stands on its ladder there for a step.
   const stops = spread(770, W - 130, 5), back = spread(W - 60, 640, 12);
   const out = [...stops.flatMap((x) => [[x - 24, G, "walk"], [x - 24, G, "pick"]]), [W - 60, G, "walk"]];
@@ -102,6 +106,8 @@ function orchard(W, S, cafe) {
     + ground(W, S("#9a9a44"), S("#84853a"), S("#cdd070"))
     + `<path d="M0 ${G + 14} H${W}" stroke="${S("#e2c08a")}" stroke-width="9"/>`
     + trees + house(cafe, S("#7a4a2c")) + stall + cart + [W - 44, W - 16].map(pumpkin).join("")
+    // Lights under the awning, a lamp by the cart and by every other tree.
+    + string(346, 566, G - 70, lit) + [714, ...stops.filter((_, i) => i % 2 === 1).map((x) => x + 34)].map((x) => lamp(x, G, lit)).join("")
     // The fire the idle ones sit by.
     + `<path d="M140 ${G} l10 -6 M162 ${G} l-10 -6" stroke="${S("#5a3f30")}" stroke-width="5" stroke-linecap="round"/><path d="M151 ${G - 5} q-10 -14 0 -28 q10 14 0 28z" fill="#ff9a3c"/><path d="M151 ${G - 5} q-5 -8 0 -16 q5 8 0 16z" fill="#ffd166"/>`;
   return {
@@ -113,6 +119,6 @@ function orchard(W, S, cafe) {
 
 // The scene `look` at width W under this sky, in the same shape as the mountain.
 export function land(W, look, cafe, sky, lit) {
-  const s = { valley, beach, orchard }[look](W, lit.shade, cafe);
+  const s = { valley, beach, orchard }[look](W, lit.shade, cafe, lit);
   return { ...s, jump: -1, flat: true, svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${heaven(W, H, sky, lit)}${s.svg}</svg>` };
 }

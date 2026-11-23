@@ -31,3 +31,23 @@ export function heaven(W, H, sky, lit) {
   }).join("");
   return `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lit.top}"/><stop offset="1" stop-color="${lit.low}"/></linearGradient></defs><rect width="${W}" height="${H}" fill="url(#sky)"/>${stars}${body}${clouds}`;
 }
+
+// A lamp post with its foot at x, y. It burns from sunset to sunrise, brighter as the dusk goes.
+export function lamp(x, y, lit, h = 46) {
+  const on = lit.day ? 0 : 0.5 + 0.5 * lit.night, top = y - h;
+  return `<path d="M${x} ${y} V${top + 4} q0 -6 6 -6" stroke="${lit.shade("#3a3f45")}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`
+    + (on ? `<circle cx="${x + 7}" cy="${top + 1}" r="30" fill="#ffd98a" opacity="${(0.07 * on).toFixed(3)}"/><circle cx="${x + 7}" cy="${top + 1}" r="17" fill="#ffd98a" opacity="${(0.13 * on).toFixed(3)}"/><circle cx="${x + 7}" cy="${top + 1}" r="8" fill="#ffe7ad" opacity="${(0.3 * on).toFixed(3)}"/>`
+      + `<ellipse cx="${x + 7}" cy="${y + 3}" rx="26" ry="5" fill="#ffd98a" opacity="${(0.16 * on).toFixed(3)}"/>` : "")
+    + `<circle cx="${x + 7}" cy="${top + 1}" r="3.4" fill="${on ? "#fff1c4" : lit.shade("#cfd6da")}"/>`;
+}
+
+// A string of small coloured lights from [x0, y] to [x1, y], sagging a little. Only after sunset.
+export function string(x0, x1, y, lit) {
+  if (lit.day) return "";
+  const n = Math.round((x1 - x0) / 20), on = 0.5 + 0.5 * lit.night;
+  return `<path d="M${x0} ${y} Q${(x0 + x1) / 2} ${y + 9} ${x1} ${y}" stroke="#2b2420" stroke-width="1" fill="none"/>`
+    + Array.from({ length: n - 1 }, (_, i) => {
+      const u = (i + 1) / n, x = Math.round(x0 + (x1 - x0) * u), by = Math.round(y + 18 * u * (1 - u) + 2), c = ["#ffd166", "#ff8f6b", "#8fe3ff", "#b6f29a"][i % 4];
+      return `<circle cx="${x}" cy="${by}" r="7" fill="${c}" opacity="${(0.16 * on).toFixed(3)}"/><circle cx="${x}" cy="${by}" r="2.4" fill="${c}"/>`;
+    }).join("");
+}
