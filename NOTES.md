@@ -172,3 +172,4 @@ Outside Herdr:
 - Explanations with concrete examples; plain words; say what was and was not verified.
 - Small steps, shown in a screenshot or mockup before a big decision.
 - Never run anything against production. Keys stay in files, never in the chat.
+- 24 Nov: no word list in the lesson. words.json was missing; the script worked when run by hand at 17:10. Most likely the three tries a day were all used up in the morning while Claude was logged out (not seen: there was no log). Now a failed try comes back every 30 minutes, and tries write data/dutch/words.log.

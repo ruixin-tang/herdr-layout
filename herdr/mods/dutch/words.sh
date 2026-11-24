@@ -21,6 +21,8 @@ id=$(printf '%s' "$episode" | jq -r .id)
 [ "$(jq -r '.id // ""' "$out" 2>/dev/null)" != "$id" ] || exit 0
 # The list of an older episode must not stay: without a list the lesson opens the page of episodes.
 rm -f "$out"
+# From here every try leaves a line in words.log, and what went wrong after it.
+exec 2>>"$dir/words.log"; echo "$(date '+%Y-%m-%d %H:%M') try for $id" >&2
 
 # The subtitles as "m:ss text" lines.
 text=$(curl -fsS -m 20 "https://cdn.npoplayer.nl/subtitles/nl/$id.vtt" | awk '

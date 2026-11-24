@@ -176,14 +176,15 @@ export default class ForestSprite extends View {
     });
   }
 
-  // The word list for today's Dutch lesson (mods/dutch/words.sh), made once a day. Three tries
-  // a day and no more: the helper may refuse the text (Floryn's data rule, the news names
-  // people), and then the lesson simply has no list.
+  // The word list for today's Dutch lesson (mods/dutch/words.sh), made once a day. A try that
+  // fails comes back half an hour later, all day: three tries in the first minutes and no more
+  // left a whole day without a list when Claude was logged out in the morning. The helper may
+  // also refuse the text (Floryn's data rule, the news names people). data/dutch/words.log
+  // says why a try failed.
   words() {
     const day = new Date().toDateString();
-    if (this.wordsTried?.day !== day) this.wordsTried = { day, n: 0 };
-    if (this.wordsDay === day || this.wordsBusy || this.wordsTried.n >= 3) return;
-    this.wordsBusy = true; this.wordsTried.n += 1;
+    if (this.wordsDay === day || this.wordsBusy || Date.now() - (this.wordsTried ?? 0) < 30 * 60000) return;
+    this.wordsBusy = true; this.wordsTried = Date.now();
     exec("sh", [`${appHome()}/mods/dutch/words.sh`, appHome()], { timeout: 120000 })
       .then((r) => { if (r.code === 0) this.wordsDay = day; }).catch(() => null).finally(() => { this.wordsBusy = false; });
   }
