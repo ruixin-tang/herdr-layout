@@ -174,3 +174,4 @@ Outside Herdr:
 - Never run anything against production. Keys stay in files, never in the chat.
 - 24 Nov: no word list in the lesson. words.json was missing; the script worked when run by hand at 17:10. Most likely the three tries a day were all used up in the morning while Claude was logged out (not seen: there was no log). Now a failed try comes back every 30 minutes, and tries write data/dutch/words.log.
 - 24 Nov: mods/dutch says words out loud (Mac voice Xander, `say`): a quiz says each word when it comes up, a click on a word or sentence says it (list, quiz, beside the video). Not heard by Claude: only that the voice makes a sound file and the list shows the play marks.
+- 24 Nov: the voice is now Claire (Enhanced), downloaded by Ruixin in System Settings; Xander is the fallback. Piper (voice Pim) was tried and removed again: not good enough.

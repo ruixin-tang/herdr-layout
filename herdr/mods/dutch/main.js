@@ -41,9 +41,10 @@ const mmss = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) %
 const before = (day) => { const d = new Date(day); do d.setDate(d.getDate() - 1); while (d.getDay() % 6 === 0); return d.toDateString(); };
 const shuffled = (list) => list.map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
 const meaning = (x) => [x.zh, x.en].filter(Boolean).join(" · ");
-// Said out loud by the Mac's Dutch voice (Xander), a little slower than it talks by itself. A new
+// Said out loud by a Dutch voice of the Mac, a little slower than it talks by itself: Claire
+// (Enhanced), which I downloaded in System Settings, or else Xander, who is always there. A new
 // word or sentence cuts off the one still being said.
-const say = (text) => { if (text) exec("sh", ["-c", 'pkill -x say; say -v Xander -r 150 "$1"', "sh", text], { timeout: 60000 }).catch(() => null); };
+const say = (text) => { if (text) exec("sh", ["-c", 'pkill -x say; say -v "Claire (Enhanced)" -r 150 "$1" 2>/dev/null || say -v Xander -r 150 "$1"', "sh", text], { timeout: 60000 }).catch(() => null); };
 const load = async (path) => { try { return JSON.parse(await readTextFile(path)); } catch { return null; } };
 
 export default class Dutch extends View {
