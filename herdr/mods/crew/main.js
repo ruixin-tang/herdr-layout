@@ -28,9 +28,12 @@ import { land } from "./scenes.js";
 // "over9k.subs") and Herdr's own (agents an agent started with `hc run`).
 // Once I have looked at a done agent Herdr makes it idle: it is on its bench in one go.
 // A click goes to that agent. Its colour stays with its terminal.
+// When an agent is gone (I closed its tab) it says "Bye!" where it was for a moment (BYE), then
+// walks off to the left, past the hut and out of the strip.
 // The scene goes with the time of year (season()): the ski resort from December to
 // March ("ski", drawn here), then the valley, the beach and the orchard (scenes.js).
 // `crew.season` shows the next scene for a look ahead, round to the calendar's own.
+// `crew.bye` shows the goodbye with a twin of the first agent.
 // The same mountain in summer with hikers ("alp") is still here but in no month.
 // The sky is the real one over where I am (the weather mod's shared "weather.sky"):
 // the sun crosses from sunrise to sunset, the moon at night, clouds when it is
@@ -45,6 +48,8 @@ const ART = "mods/crew", SCENES = "data/crew-scene";
 // Raise this when the mountain is drawn differently: a saved picture is reused by its name.
 const DRAWING = 7;
 const H = 260, SIZE = 56, STEP = 3000;
+// How long a leaving agent says goodbye, and how far past the left edge it walks.
+const BYE = 2500, EXIT = 80;
 // The compact strip's height against the full one's.
 const SMALLER = 160 / 260;
 // A follower's size, how far the first one is behind its parent, and how many are drawn.
@@ -164,12 +169,22 @@ export default class Crew extends View {
     // For the walk between the benches and the rest: who was out there last time, when each one
     // came back, and where each one sat.
     this.out = new Set(); this.back = {}; this.seat = {};
+    // For the goodbye: every agent as it was last seen and where it was drawn, and the ones
+    // that are gone and still on their way out.
+    this.known = {}; this.spot = {}; this.leaving = {};
     if (checking()) return;
     this.measure(cx);
     cx.spawn(async (cx) => {
       for (;;) {
         // A look at the next scene of the year; back at the calendar's own it follows the calendar again.
-        if ((await nextCommand()) !== "season") continue;
+        const command = await nextCommand();
+        // `crew.bye`: a look at the goodbye without closing anything. A twin of the first agent leaves.
+        if (command === "bye") {
+          const a = agents()[0], at = a && this.spot[a.address];
+          if (at) this.leaving[`${a.address}-bye`] = { a: { ...a, address: `${a.address}-bye` }, x: at.x, y: at.feet - SIZE, at: Date.now() };
+          cx.notify();
+        }
+        if (command !== "season") continue;
         const next = YEAR[(YEAR.indexOf(this.preview ?? season()) + 1) % YEAR.length];
         this.preview = next === season() ? null : next;
         this.measure(cx);
@@ -237,7 +252,9 @@ export default class Crew extends View {
   // One agent at a spot (x: its middle, y: the top of its drawing), gliding there
   // from wherever it was: its drawing, a "!" above when it wants me, its name below.
   // `back`: where "behind" is, as [direction along x, the slope there]; followers hang or stand along it.
-  figure(a, pose, x, y, t, { size = SIZE, wants = false, dim = false, bounce = 0, named = true, steam = false, wing = false, back = [-1, 0] } = {}) {
+  figure(a, pose, x, y, t, { size = SIZE, wants = false, dim = false, bounce = 0, named = true, steam = false, wing = false, back = [-1, 0], bubble = null, glide = STEP } = {}) {
+    // Where its feet are, for when it leaves. One that is leaving already is not kept.
+    if (!this.leaving[a.address]) this.spot[a.address] = { x, feet: y + size, chair: pose === "working" || pose === "pack" };
     const name = a.title.replace(/^[^A-Za-z0-9]+/, "") || a.tab_name || a.program?.name || "agent", k = this.scene.k;
     // The spot and the drawings follow the mountain's size; the "!" and the name stay readable.
     x *= k; y *= k; size = Math.round(size * k);
@@ -246,7 +263,8 @@ export default class Crew extends View {
     const says = a.status === "done" ? "finished, have a look" : a.status === "blocked" ? "needs your answer" : a.status;
     const body = v_flex().w(84).items_center()
       .child(h_flex().h(14).justify_center().when(wants, (el) => el.child(div().h(14).min_w(14).px(3).flex().items_center().justify_center().rounded(7)
-        .text_size(10).font_semibold().bg(t.blocked).text_color(t.accent_foreground).child("!").loop("opacity", { from: 0.4, to: 1, period: 800 }))))
+        .text_size(10).font_semibold().bg(t.blocked).text_color(t.accent_foreground).child("!").loop("opacity", { from: 0.4, to: 1, period: 800 })))
+        .when(Boolean(bubble), (el) => el.child(div().h(14).px(6).flex().items_center().rounded(7).text_size(10).font_semibold().bg("#f8e7b4").text_color("#3a2313").child(bubble ?? ""))))
       // Only the drawing itself takes the click: the boxes around two neighbours overlap, the drawings don't.
       .child(div().id(`crew-hit-${a.address}`).w(size).h(size).cursor_pointer().tooltip(`${name} · ${a.space_name} · ${says}${subs.length ? ` · ${subs.length} sub-agent${subs.length > 1 ? "s" : ""} running` : ""}`)
         .on_click(() => { run("agent.focus", { terminal: a.address }); })
@@ -276,7 +294,7 @@ export default class Crew extends View {
     const more = kids.length > FOLLOWERS ? [div().absolute().left(42 + back[0] * (BEHIND + FOLLOWERS * TRAIL) * k - 10).top(14 + Math.round(back[1] * back[0] * (BEHIND + FOLLOWERS * TRAIL) * k) + (chair ? 8 : size - 16))
       .w(20).text_size(10).text_color(t.muted).child(`+${kids.length - FOLLOWERS}`)] : [];
     return div().id(`crew-${a.address}-${chair ? "chair" : pose.startsWith("rest") ? "seat" : "foot"}`).absolute().left(x - 42).top(y - 14)
-      .transition("left", { duration: STEP, easing: "linear" }).transition("top", { duration: STEP, easing: "linear" })
+      .transition("left", { duration: glide, easing: "linear" }).transition("top", { duration: glide, easing: "linear" })
       .children(trail).children(more)
       // The wing is drawn at the figure's scale: its lines end at the flying skier's hands.
       .when(wing, (el) => el.child(image(`${ART}/ski-${suit}-wing.svg`).absolute().left(42 - (56 * size) / 64).top(14 - (24 * size) / 64).w((112 * size) / 64).h((50 * size) / 64)))
@@ -296,6 +314,17 @@ export default class Crew extends View {
     const frame = div().id("crew").size_full().relative().overflow_hidden().rounded(6).bg(t.chrome).border_1().border_color(t.border);
     if (!s) return frame;
     const list = agents(), ms = Date.now();
+    // Whoever is gone since the last look starts its goodbye where it was (from a chair: on the
+    // slope under it); whoever is back before it has left simply stays.
+    const here = new Set(list.map((a) => a.address));
+    for (const [address, a] of Object.entries(this.known)) {
+      if (here.has(address)) continue;
+      const at = this.spot[address];
+      const under = at?.chair ? s.down.reduce((best, p) => (Math.abs(p[0] - at.x) < Math.abs(best[0] - at.x) ? p : best))[1] + 4 : at?.feet;
+      if (at) this.leaving[address] = { a, x: at.x, y: under - SIZE, at: ms };
+      delete this.known[address]; delete this.spot[address];
+    }
+    for (const a of list) { this.known[a.address] = a; delete this.leaving[a.address]; }
     const wanting = list.filter((a) => a.status === "blocked" || a.status === "done");
     const idle = list.filter((a) => !["working", "blocked", "done"].includes(a.status));
     // On the mountain: whoever is on a lap, working or on its way down to tell me something.
@@ -368,6 +397,12 @@ export default class Crew extends View {
       shelter.push(div().absolute().left((mid - 1.5) * k).top((rim - tall + 4) * k).w(3 * k).h((VALLEY + 4 - rim + tall - 4) * k).rounded(1).bg("#6b4a2f"),
         image(`${ART}/umbrella-big.svg`).absolute().left((mid - wide / 2) * k).top((rim - tall) * k).w(wide * k).h(tall * k));
     }
+    // The ones leaving: the goodbye first, then the walk out, as long as the way is.
+    const goodbyes = Object.entries(this.leaving).map(([address, g]) => {
+      const walk = Math.max(BYE, (g.x + EXIT) * 6), off = ms - g.at >= BYE;
+      if (ms - g.at > BYE + walk + 1000) { delete this.leaving[address]; return null; }
+      return this.figure(g.a, s.flat ? (s.look === "beach" ? "walk" : "carry") : afoot, off ? -EXIT : g.x, off ? VALLEY - SIZE + 4 : g.y, t, { bubble: off ? null : "Bye!", glide: walk });
+    }).filter(Boolean);
     // The front row is drawn over the back row.
     const drawn = [...figures.filter((_, i) => !inFront.has(list[i].address)), ...figures.filter((_, i) => inFront.has(list[i].address))];
 
@@ -419,6 +454,7 @@ export default class Crew extends View {
             .child(image(`${ART}/clock-water.svg`).w(k < 1 ? 14 : 18).h(k < 1 ? 14 : 18).opacity(i < glasses ? 1 : 0.18))))))
       .children(shelter)
       .children(drawn)
+      .children(goodbyes)
       .when(!list.length, (el) => el.child(div().absolute().left(560 * k).top((VALLEY - 16) * k).text_size(11).text_color(t.dim).child(s.empty ?? "Nobody on the mountain: start an agent and it takes the lift.")));
   }
 }
