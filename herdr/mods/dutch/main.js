@@ -21,6 +21,7 @@ import { exec, theme, checking, shared, setShared, props, closeOverlay, notify, 
 //   props.look      only the list, with the sentences (the sprite's "words" command)
 // The state is shared as "dutch": { day, openedAt, closedAt, watchAt, watchMs, plan, stage,
 // stageAt, done, skipped, streak, last, learned, missed, refreshed, refreshAsked }.
+// Sound: a quiz says each word when it comes up; a click on a word or a sentence, anywhere, says it.
 // The list of episodes, for when there is no word list (which knows the episode itself).
 const URL = "https://npo.nl/start/serie/nos-journaal-in-makkelijke-taal/afleveringen";
 // Dutch Today (slow, about 6 minutes an episode, text and translation with it).
@@ -40,6 +41,9 @@ const mmss = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) %
 const before = (day) => { const d = new Date(day); do d.setDate(d.getDate() - 1); while (d.getDay() % 6 === 0); return d.toDateString(); };
 const shuffled = (list) => list.map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
 const meaning = (x) => [x.zh, x.en].filter(Boolean).join(" · ");
+// Said out loud by the Mac's Dutch voice (Xander), a little slower than it talks by itself. A new
+// word or sentence cuts off the one still being said.
+const say = (text) => { if (text) exec("sh", ["-c", 'pkill -x say; say -v Xander -r 150 "$1"', "sh", text], { timeout: 60000 }).catch(() => null); };
 const load = async (path) => { try { return JSON.parse(await readTextFile(path)); } catch { return null; } };
 
 export default class Dutch extends View {
@@ -103,6 +107,7 @@ export default class Dutch extends View {
   choices() {
     const q = this.quiz, word = q.items[q.i];
     q.options = shuffled([word, ...shuffled(q.all.filter((x) => x.nl !== word.nl && meaning(x) !== meaning(word))).slice(0, 3)]);
+    say(word.nl);
   }
 
   // Wrong: the answer is shown and the word comes back at the end.
@@ -150,7 +155,7 @@ export default class Dutch extends View {
 
   // Half of the word list, in the strip beside the video: the minute, the word, what it means.
   column(list, w, t) {
-    return v_flex().w(w).h_full().flex_none().px(14).pt(44).pb(8).gap(10).overflow_hidden().children(list.map((x) => v_flex().gap(1)
+    return v_flex().w(w).h_full().flex_none().px(14).pt(44).pb(8).gap(10).overflow_hidden().children(list.map((x) => v_flex().id(`dutch-side-${x.at}-${x.nl}`).gap(1).cursor_pointer().on_click(() => say(x.nl))
       .child(h_flex().gap(6).items_baseline()
         .child(div().flex_none().text_size(10).text_color(t.dim).child(x.at))
         .child(div().text_size(15).font_semibold().text_color(t.accent).child(x.nl)))
@@ -165,8 +170,11 @@ export default class Dutch extends View {
     const word = q.items[q.i];
     return v_flex().w(560).gap(12).items_center()
       .child(div().text_size(12).text_color(t.dim).child(`${Math.min(q.i + 1, q.total)} van ${q.total}${q.items.length > q.total ? `, en ${q.items.length - Math.max(q.i, q.total)} opnieuw` : ""}`))
-      .child(div().text_size(34).font_semibold().text_color(t.accent).child(word.nl))
-      .child(div().w_full().text_size(13).text_color(t.muted).text_center().whitespace_normal().child(word.zin ?? ""))
+      .child(h_flex().id(`dutch-word-${q.i}`).gap(10).items_baseline().cursor_pointer().on_click(() => say(word.nl))
+        .child(div().text_size(34).font_semibold().text_color(t.accent).child(word.nl))
+        .child(div().text_size(12).text_color(t.dim).child("▶ nog een keer")))
+      .child(div().id(`dutch-zin-${q.i}`).w_full().text_size(13).text_color(t.muted).text_center().whitespace_normal().cursor_pointer()
+        .hover((s) => s.text_color(t.foreground)).on_click(() => say(word.zin)).child(word.zin ?? ""))
       .when(!q.wrong, (el) => el.child(v_flex().w_full().gap(8).pt(8).children(q.options.map((o, i) => div().id(`dutch-option-${q.i}-${i}`).w_full().px(16).py(10).rounded(10).cursor_pointer()
         .border_1().border_color(t.border).text_size(15).hover((s) => s.bg(t.hover)).on_click((_e, cx) => { this.answer(o); cx.notify(); }).child(meaning(o))))))
       .when(q.wrong, (el) => el.child(v_flex().w_full().gap(10).pt(8).items_center()
@@ -180,12 +188,13 @@ export default class Dutch extends View {
     const t = theme(), s = shared("dutch") ?? {}, streak = s.streak ?? 0, now = Date.now();
     // Looking only: the whole list, each word with the sentence it was said in.
     if (props()?.look) return v_flex().id("dutch").size_full().px(40).py(28).gap(9).overflow_hidden().bg(t.popover).text_color(t.foreground)
-      .child(div().text_size(18).font_semibold().pb(6).child(this.words ? `De woorden van het Journaal van ${this.words.date}` : "Nog geen woordenlijst."))
-      .children((this.words?.words ?? []).map((x) => h_flex().gap(14).items_baseline()
+      .child(div().text_size(18).font_semibold().pb(6).child(this.words ? `De woorden van het Journaal van ${this.words.date}  (klik op een woord of zin om het te horen)` : "Nog geen woordenlijst."))
+      .children((this.words?.words ?? []).map((x, i) => h_flex().gap(14).items_baseline()
         .child(div().w(34).flex_none().text_size(11).text_color(t.dim).child(x.at))
-        .child(div().w(210).flex_none().text_size(15).font_semibold().text_color(t.accent).child(x.nl))
+        .child(div().id(`dutch-look-${i}`).w(210).flex_none().text_size(15).font_semibold().text_color(t.accent).cursor_pointer().on_click(() => say(x.nl)).child(`▶ ${x.nl}`))
         .child(div().w(250).flex_none().text_size(12).child(`${x.zh ?? ""}  ${x.en ?? ""}`))
-        .child(div().flex_1().min_w_0().truncate().text_size(12).text_color(t.muted).child(x.zin ?? ""))));
+        .child(div().id(`dutch-look-zin-${i}`).flex_1().min_w_0().truncate().text_size(12).text_color(t.muted).cursor_pointer()
+          .hover((s) => s.text_color(t.foreground)).on_click(() => say(x.zin)).child(x.zin ?? ""))));
     if (props()?.refresh) return v_flex().id("dutch").size_full().items_center().justify_center().gap(22).bg(t.popover).text_color(t.foreground)
       .child(div().text_size(16).text_color(t.muted).child(`Goedemorgen! Eerst de woorden van het Journaal van ${this.words?.date ?? "gisteren"}.`))
       .child(this.question(t))
