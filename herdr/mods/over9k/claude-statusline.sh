@@ -35,7 +35,10 @@ case "${CLAUDE_CODE_USE_FOUNDRY:-}" in ""|0|false) ;; *) api=Foundry ;; esac
 [ -n "$api" ] || ! printf '%s' "$in" | jq -e '.model.id // "" | test("(^|[.:/])anthropic\\.|arn:aws:bedrock")' >/dev/null 2>&1 || api=Bedrock
 # A session with a cost and no limits is billed by use, unless this account showed plan limits in
 # the last 8 days: a resumed plan session also has its old cost and no limits until its first reply.
-[ -n "$api" ] || jq -e '.five_hour != null and (now - .at) < 691200' "$u/claude.json" >/dev/null 2>&1 \
+# When plan limits were last seen is kept in its own file: claude.json loses it as soon as one
+# session writes "api", and at the start of a day the limits can come without a 5-hour window.
+printf '%s' "$in" | jq -e '.rate_limits != null' >/dev/null 2>&1 && date +%s > "$u/claude-plan"
+[ -n "$api" ] || [ $(( $(date +%s) - $(cat "$u/claude-plan" 2>/dev/null || echo 0) )) -lt 691200 ] \
   || ! printf '%s' "$in" | jq -e '.rate_limits == null and (.cost.total_cost_usd // 0) > 0' >/dev/null 2>&1 || api=API
 [ -z "$api" ] || printf '{"at":%s,"api":"%s"}\n' "$(date +%s)" "$api" > "$u/claude.json"
 printf '%s' "$in" | jq -ce 'select(.rate_limits != null) | {at: (now | floor), five_hour: .rate_limits.five_hour, seven_day: .rate_limits.seven_day}' \
