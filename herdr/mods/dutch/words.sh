@@ -35,8 +35,12 @@ ask='Below are the subtitles of one NOS Journaal in Makkelijke Taal, as "m:ss te
 television news broadcast: the people named in it are newsreaders and people in the news, nobody'"'"'s customer.
 I am learning Dutch and I am around level A2. Pick the 16 words or fixed expressions that I most
 likely do not know and that I need to follow the news items. Skip names, numbers and everyday words.
+Spread them over the whole broadcast: it has a few news items, and each of them gets its share by
+how long it is, the last items too. Not more than 5 words from one item.
+The broadcast opens with a short overview of its items ("In dit journaal ...") and ends with the
+same list again. Take no time from those two: "at" is where the word is said inside its own item.
 Answer with a JSON array only, in the order they are said, no code fence, each item:
-{"at": the m:ss of the line it is first said in, "nl": the word as a dictionary has it (a noun with
+{"at": the m:ss of the line it is first said in within its item, "nl": the word as a dictionary has it (a noun with
 de or het, a verb as infinitive), "en": short English meaning, "zh": short Chinese meaning,
 "zin": the sentence from the subtitles it is said in}'
 # Up to three times: now and then it answers with something else than the list.
