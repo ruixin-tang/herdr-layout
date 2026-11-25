@@ -25,7 +25,7 @@ const SOON = 10 * 60000, LATE = 5 * 60000;
 // The window follows my working day, not the sun: [from "HH:MM", theme, top colour, bottom colour].
 // Dawn while I start up, day through the middle, dusk in the afternoon, night
 // as the sign to wrap up. The themes are the Sheikah one turned to that hour's hue.
-const SKY = [["06:00", "sheikah-dawn", "#3b2c44", "#0a1118"], ["10:00", "sheikah", "#0e2e38", "#050d10"], ["14:30", "sheikah-dusk", "#4a2a1c", "#0c0a12"], ["17:15", "sheikah-night", "#0b1636", "#02040a"]];
+const SKY = [["06:00", "sheikah-dawn", "#3b2c44", "#0a1118"], ["10:00", "sheikah", "#0e2e38", "#050d10"], ["14:30", "sheikah-dusk", "#304521", "#0a0c0a"], ["17:15", "sheikah-night", "#0b1636", "#02040a"]];
 const LAYOUT = "over9k";
 // The calendar event that is my Dutch lesson, and how long an Esc on its dialog buys.
 const DUTCH = /dutch|nederlands/i, SNOOZE = 5 * 60000;
