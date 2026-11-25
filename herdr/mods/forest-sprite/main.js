@@ -230,6 +230,8 @@ export default class ForestSprite extends View {
     const m = this.lessonDue();
     if (!m || shared("layout") !== LAYOUT) return;
     const s = shared("dutch") ?? {}, now = Date.now(), today = s.day === new Date().toDateString();
+    // "Later" in the dialog (or in the notices list): not by itself before that time.
+    if (!asked && now < (s.snoozeUntil ?? 0)) return;
     const open = today && s.openedAt > (s.closedAt ?? 0) && now - s.openedAt < 1800000;
     // (Closed before the lesson began is not a snooze.)
     if (open || (!asked && today && (s.closedAt ?? 0) >= m.start && now - s.closedAt < SNOOZE)) return;
@@ -253,7 +255,13 @@ export default class ForestSprite extends View {
       sample("s3", "NS", "blocked", "Your 17:22 to Eindhoven is 8 min late", ["Quiet"]), sample("s4", "NL", "accent", "Het Journaal in Makkelijke Taal wacht op je.", ["Start de les"])];
     const list = [], now = Date.now(), today = new Date().toDateString();
     const add = (id, tag, color, text, acts = []) => list.push({ id, tag, color, text, acts: acts.map(([key, label, go]) => ({ key, label, go })) });
-    if (this.lessonDue()) add("dutch", "NL", "accent", "Het Journaal in Makkelijke Taal wacht op je.", [["start", "Start de les", () => this.lesson(true)]]);
+    if (this.lessonDue()) {
+      const until = shared("dutch")?.snoozeUntil ?? 0, later = (minutes) => () => setShared("dutch", { ...(shared("dutch") ?? {}), snoozeUntil: Date.now() + minutes * 60000, watchAt: null, stage: null, stageAt: 0 });
+      const start = ["start", "Start de les", () => { setShared("dutch", { ...(shared("dutch") ?? {}), snoozeUntil: 0 }); this.lesson(true); }];
+      // Snoozed: a quiet row that says until when; else it waits, and can be put off from here too.
+      if (now < until) add("dutch", "NL", "dim", `De Nederlandse les komt om ${new Date(until).toTimeString().slice(0, 5)} terug.`, [start]);
+      else add("dutch", "NL", "accent", "Het Journaal in Makkelijke Taal wacht op je.", [start, ["later", "30 min later", later(30)]]);
+    }
     const meet = this.meeting();
     if (meet) {
       const mins = Math.round((meet.start - now) / 60000), quiet = () => { this.quiet = `${meet.title}@${meet.start}`; localStorage.setItem("quiet", this.quiet); };
@@ -317,7 +325,7 @@ export default class ForestSprite extends View {
     if (blocked) return { art: "alert", bubble: "!", color: "blocked", tip: blocked.title, bob: 500, go: () => run("pane.focus", { pane: blocked.pane }) };
     // Something wants me: only its tag here, what it says and its buttons are in the sidebar's list.
     const first = this.notices()[0];
-    if (first) return { art: first.color === "done" ? "happy" : "alert", bubble: first.tag, color: first.color, tip: `In the list beside me: ${first.text}`, bob: 800, go: null };
+    if (first) return { art: first.color === "done" ? "happy" : first.color === "dim" ? "idle" : "alert", bubble: first.tag, color: first.color, tip: `In the list beside me: ${first.text}`, bob: 800, go: null };
     // A word from my last lesson: hover to see whether I still know it.
     const minute = Math.floor(Date.now() / 60000), word = (this.learned ?? [])[Math.floor(minute / WORD_EVERY) % Math.max(1, (this.learned ?? []).length)];
     if (word && minute % WORD_EVERY === 0) return { art: "idle", bubble: "NL", color: "accent", say: word.nl, tip: [word.zh, word.en].filter(Boolean).join(" · "), bob: 1200, go: null };

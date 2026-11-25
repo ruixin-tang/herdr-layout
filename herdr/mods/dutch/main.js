@@ -15,12 +15,14 @@ import { exec, theme, checking, shared, setShared, props, closeOverlay, notify, 
 //                   (cover.swift) and shows the same word list, large. When the lesson is over
 //                   the streak grows and the workspace and the screens come back
 //   Esc             only snoozes: the sprite opens it again a few minutes later
+//   "Later"         15, 30 or 60 minutes of peace when I am in the middle of something: the
+//                   Journaal closes, and the lesson starts again from the beginning after that
 //   "Niet vandaag"  asks twice, then lets me go and ends the streak
 //   props.refresh   the next morning (the sprite): REFRESH of yesterday's words as a quiz, the
 //                   ones I had wrong first. No video, nothing covered, Esc is fine
 //   props.look      only the list, with the sentences (the sprite's "words" command)
 // The state is shared as "dutch": { day, openedAt, closedAt, watchAt, watchMs, plan, stage,
-// stageAt, done, skipped, streak, last, learned, missed, refreshed, refreshAsked }.
+// stageAt, done, skipped, streak, last, learned, missed, refreshed, refreshAsked, snoozeUntil }.
 // Sound: a quiz says each word when it comes up; a click on a word or a sentence, anywhere, says it.
 // The list of episodes, for when there is no word list (which knows the episode itself).
 const URL = "https://npo.nl/start/serie/nos-journaal-in-makkelijke-taal/afleveringen";
@@ -155,6 +157,14 @@ export default class Dutch extends View {
     closeOverlay(props().overlay);
   }
 
+  // "Later": nothing of the lesson until then. The watching starts over, or the minutes away
+  // would count as watched.
+  later(minutes) {
+    this.set({ snoozeUntil: Date.now() + minutes * 60000, watchAt: null, stage: null, stageAt: 0 });
+    cover("stop"); cover("close");
+    closeOverlay(props().overlay);
+  }
+
   // Esc, or anything else that closes it: the sprite reads this as a snooze. The other screens come back.
   async close() { if (props()?.look || props()?.refresh) return; this.set({ closedAt: Date.now() }); cover("stop"); if (demo()) cover("close"); }
 
@@ -233,6 +243,9 @@ export default class Dutch extends View {
         .child(h_flex().gap(16).items_center()
           .when(stage !== "quiz", (el) => el.child(this.button("dutch-again", stage === "listen" ? "Open Xitun opnieuw" : "Open het Journaal opnieuw", t, () => { cover("news", stage === "listen" ? LISTEN_URL : this.words?.url ?? URL); })))
           .child(div().text_size(11).text_color(t.dim).child("Esc: over 5 minuten opnieuw (snooze)"))
+          .when(stage === "watch" && !demo(), (el) => el.child(h_flex().gap(2).items_center()
+            .child(div().text_size(11).text_color(t.dim).child("Later:"))
+            .children([[15, "15 min"], [30, "30 min"], [60, "1 uur"]].map(([m, label]) => this.button(`dutch-later-${m}`, label, t, () => { this.later(m); })))))
           .child(this.button("dutch-skip", this.armed ? (kept ? `Zeker? Je reeks van ${streak} stopt. Klik nog een keer.` : "Zeker? Klik nog een keer.") : "Niet vandaag (skip)", t, (_e, cx) => {
             if (!this.armed) { this.armed = true; cx.notify(); return; }
             this.set({ skipped: true, streak: 0 });
