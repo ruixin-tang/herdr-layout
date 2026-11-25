@@ -6,6 +6,9 @@ import { exec, readTextFile, theme, home, checking, agents, run, shared, setShar
 // (it can reach Notion; this panel can't). PRs come straight from gh.
 // A ticket's title is not a link: agents read the ticket from the cached url.
 const CACHE = `${home()}/.cache/my-work/tickets.json`;
+// A click on Refresh writes its time here; a Claude Code session that sees it (my-tickets looks
+// every 15 seconds) fetches the tickets from Notion at once. ASK_MS: how long I wait for that.
+const REQUEST = `${home()}/.cache/my-work/refresh.json`, ASK_MS = 60000;
 const ROLE = { owner: "Owner", reviewer: "Reviewer", pairbuddy: "Pairbuddy" };
 const SECTIONS = [["action", "Requires my action"], ["waiting", "Waiting for others"], ["team", "Asked of the whole team"], ["shipped", "Shipped"]];
 const PR_FIELDS = "--json=number,title,url,isDraft,state,repository";
@@ -66,12 +69,30 @@ export default class MyWork extends View {
     // Merged PRs known to be on production, and the ones whose deploy instructions I ticked off.
     this.live = stored("live") ?? {}; this.deployDone = stored("deployDone") ?? [];
     if (checking()) return;
-    this.refresh(cx);
+    this.loadTickets(cx); this.loadPrs(cx);
     cx.timer.every(60000, (cx) => this.loadTickets(cx));
     cx.timer.every(300000, (cx) => this.loadPrs(cx));
   }
 
-  refresh(cx) { this.loadTickets(cx); this.loadPrs(cx); }
+  // The Refresh button: the PRs again from gh, and the tickets asked for from Notion. Until the
+  // cache is newer than the click the header says so; with no session listening it says that.
+  refresh(cx) {
+    this.loadPrs(cx);
+    if (this.asking) return;
+    const at = Date.now();
+    this.asking = at; this.unanswered = false;
+    cx.spawn(async (cx) => {
+      await exec("sh", ["-c", 'printf \'{"at":%s}\' "$2" > "$1"', "sh", REQUEST, String(at)]).catch(() => null);
+      while (Date.now() - at < ASK_MS) {
+        await cx.sleep(2000);
+        try { if (JSON.parse(await readTextFile(CACHE)).loadedAt >= at) break; } catch { /* half-written: the next look */ }
+      }
+      this.asking = null; this.loadTickets(cx);
+      try { this.unanswered = !(JSON.parse(await readTextFile(CACHE)).loadedAt >= at); } catch { this.unanswered = true; }
+      cx.notify();
+    });
+    cx.notify();
+  }
 
   // How much is waiting on me, for other mods (the forest sprite); set only when it changes.
   publish() {
@@ -347,7 +368,7 @@ export default class MyWork extends View {
         .child(div().font_semibold().child("My work"))
         .child(div().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted).child(`${todo} for me`))
         .child(div().flex_1())
-        .child(div().text_size(10.5).text_color(t.dim).child(!tickets && this.loadingPrs ? "loading…" : at ? clock(at) : ""))
+        .child(div().text_size(10.5).text_color(t.dim).child(!tickets && this.loadingPrs ? "loading…" : tickets && this.asking ? "asking Notion…" : tickets && this.unanswered ? `no Claude session answered · ${at ? clock(at) : ""}` : at ? clock(at) : ""))
         .child(h_flex().id("refresh").px(5).py(1).flex_none().items_center().rounded(4).cursor_pointer().text_size(10.5).text_color(t.dim)
           .hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click((_e, cx) => { if (recap) this.loadRecaps(cx); else this.refresh(cx); }).child("Refresh")))
       .child(h_flex().flex_none().min_h(30).gap(2).px(8).pt(5).items_center().text_size(11.5)

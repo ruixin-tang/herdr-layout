@@ -15,6 +15,12 @@ const CACHE = '/Users/ruixintang/.cache/my-work/tickets.json'
 const MEETINGS = '/Users/ruixintang/.cache/my-work/meetings.json'
 const MEETINGS_ERROR = '/Users/ruixintang/.cache/my-work/meetings.error.json'
 
+// The Herdr panel's Refresh button writes the time of the click here. Every session looks every
+// ASKED_MS; the first one to see a click newer than the cache claims it and syncs the tickets.
+const REQUEST = '/Users/ruixintang/.cache/my-work/refresh.json'
+const CLAIM = '/Users/ruixintang/.cache/my-work/refresh.claim.json'
+const ASKED_MS = 15 * 1000
+
 const EMPTY: Board = {
   tickets: [],
   prs: [],
@@ -275,6 +281,30 @@ const sync = async ($: EngineInterface): Promise<void> => {
   }
 }
 
+// A Refresh click in the Herdr panel that no session has answered yet: fetch the tickets now.
+const asked = async ($: EngineInterface): Promise<void> => {
+  try {
+    const { at } = JSON.parse(await $.fs.read(REQUEST)) as { at: number }
+    const cached = JSON.parse(await $.fs.read(CACHE)) as { loadedAt: number }
+    if (!(at > cached.loadedAt)) {
+      return
+    }
+    let claimed = 0
+    try {
+      claimed = (JSON.parse(await $.fs.read(CLAIM)) as { at: number }).at
+    } catch {
+      // nobody claimed anything yet
+    }
+    if (claimed >= at) {
+      return
+    }
+    await $.fs.write(CLAIM, JSON.stringify({ at }))
+    await writeCache($, await loadTickets($), await $.clock.now())
+  } catch {
+    // no click yet, or Notion refused: the panel says nobody answered
+  }
+}
+
 const refresh = async ($: EngineInterface): Promise<void> => {
   await update($, board, now => ({ ...now, isLoading: true }))
   const [tickets, prs] = await Promise.allSettled([loadTickets($), loadPrs($)])
@@ -319,6 +349,7 @@ export const register: Register = on => {
     })
     void sync($)
     $.clock.every(REFRESH_MS, () => void sync($))
+    $.clock.every(ASKED_MS, () => void asked($))
 
     return next(e)
   })
