@@ -57,6 +57,16 @@
           ]
         },
         {
+          "id": "notices",
+          "type": "block",
+          "content": {
+            "mod": "notices"
+          },
+          "size": {
+            "px": 60
+          }
+        },
+        {
           "id": "dev-servers",
           "type": "block",
           "content": {

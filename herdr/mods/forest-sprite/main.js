@@ -7,15 +7,19 @@ import { Trainer } from "./shortcuts.js";
 // from when it was a forest sprite; tools/fox.py in ~/workspace-backup draws it):
 //   I clicked what a key does -> shows that key for a few seconds (shortcuts.js); a short cheer when I used the key
 //   an agent is blocked      -> startled, an orange "!"; a click goes to that agent
-//   my Dutch lesson is due   -> opens the `dutch` dialog over the whole window when the calendar's
-//                               "Dutch" event starts, again 5 minutes after every Esc, and says so
-//                               in between, until I watched the Journaal or said "not today"
-//   a meeting starts soon    -> says which and when; a click joins it (or just quiets it)
-//   Morning start ran        -> once a day: says so; a click opens the brief
-//   my train home is late    -> says which; a click quiets it
-//   time to go home          -> once a day: when to get up for which train, and the rain; a click quiets it
-//   new "Requires my action" -> holds up the count; a click opens My work
+//   something wants me       -> the tag of the first notice; what it says is in the sidebar
 //   an agent finished unseen -> happy; a click goes to it
+// What wants me is a list in the sidebar (the `notices` mod draws it, this one makes it: notices()),
+// each with its buttons, and each stays until I dealt with it:
+//   my Dutch lesson is due   -> the `dutch` dialog also opens over the whole window when the
+//                               calendar's "Dutch" event starts, and again 5 minutes after every Esc
+//   a meeting starts soon    -> which and when; Join, or Quiet
+//   sitting too long         -> get up for water; gone once I have been away
+//   back from that break     -> "+1 glass" and "20 woorden" (Xitun), each its own button
+//   Morning start ran        -> once a day; opens the brief
+//   my train home is late    -> which; Quiet
+//   time to go home          -> once a day: when to get up for which train, and the rain
+//   new "Requires my action" -> the count; shows My work
 //   agents are working       -> busy, bobbing
 //   nothing going on         -> asleep
 const ART = "mods/forest-sprite";
@@ -35,7 +39,10 @@ const DUTCH = /dutch|nederlands/i, SNOOZE = 5 * 60000;
 // "forest-sprite.compact" (a key) switches by hand; that choice holds until it is the
 // window's own again.
 // Water: after SIT at the Mac without a BREAK away from it, the sprite sends me for a glass.
-const SIT = 50 * 60000, BREAK = 180000, OFFER = 300000;
+// OFFER: how long the question whether I drank stays in the list.
+const SIT = 50 * 60000, BREAK = 180000, OFFER = 30 * 60000;
+// The notices block in the sidebar, and how many letters of a notice fit on one of its lines.
+const BAR = "notices", LINE = 34;
 // Back from a water break, the glass comes with 20 word cards on Xitun (my A1-A2 book).
 const CARDS = "https://xitun.ltd/my/nl/contents?tab=vocabulary&book_id=de92d086-b370-4c9e-a7f3-a20337a79f4e&mode=study";
 // The words of my last Dutch lesson: one of them shows for a minute every WORD_EVERY minutes
@@ -63,6 +70,14 @@ export default class ForestSprite extends View {
           if (c === "my-work") this.myWork();
           // The "did you drink?" question once more (to look at it).
           if (c === "water") setShared("water", { ...(shared("water") ?? {}), offer: Date.now() });
+          // A button in the notices list was clicked: which one is in shared "notices.click".
+          if (c === "notice") {
+            const click = shared("notices.click") ?? {};
+            this.notices().find((n) => n.id === click.id)?.acts.find((a) => a.key === click.key)?.go();
+          }
+          // `forest-sprite.notices`: a few made-up notices, to look at the list; again takes them away.
+          if (c === "notices") this.sample = !this.sample;
+          this.post();
           // Today's lesson once more, also when it is done already (to look at the dialog).
           if (c === "lesson") { setShared("dutch", { ...(shared("dutch") ?? {}), done: false, skipped: false, watchAt: null }); this.lesson(true); }
           // The whole lesson at home in two minutes, to show it: nothing of it counts.
@@ -76,6 +91,7 @@ export default class ForestSprite extends View {
     }
     this.trainer = new Trainer();
     if (!checking()) cx.timer.every(1000, (cx) => { if (this.trainer.over()) cx.notify(); });
+    if (!checking()) cx.timer.every(2000, () => this.post());
     // The count already seen: only a rise wakes the sprite, not the standing pile.
     this.seen = Number(localStorage.getItem("seen") ?? -1);
   }
@@ -230,9 +246,67 @@ export default class ForestSprite extends View {
 
   see(n) { this.seen = n; localStorage.setItem("seen", String(n)); }
 
-  mood() {
-    const list = agents(), todo = Number(shared("my-work.action") ?? 0);
+  // Everything that wants me, most pressing first: { id, tag, color, text, acts: [{ key, label, go }] }.
+  notices() {
+    const sample = (id, tag, color, text, acts) => ({ id, tag, color, text, acts: acts.map((label, i) => ({ key: String(i), label, go: () => { this.sample = false; } })) });
+    if (this.sample) return [sample("s1", "12m", "accent", "Diligence standup in 12 min", ["Join", "Quiet"]), sample("s2", "+1", "done", "Welcome back. Did you drink?", ["+1 glass", "20 woorden", "No"]),
+      sample("s3", "NS", "blocked", "Your 17:22 to Eindhoven is 8 min late", ["Quiet"]), sample("s4", "NL", "accent", "Het Journaal in Makkelijke Taal wacht op je.", ["Start de les"])];
+    const list = [], now = Date.now(), today = new Date().toDateString();
+    const add = (id, tag, color, text, acts = []) => list.push({ id, tag, color, text, acts: acts.map(([key, label, go]) => ({ key, label, go })) });
+    if (this.lessonDue()) add("dutch", "NL", "accent", "Het Journaal in Makkelijke Taal wacht op je.", [["start", "Start de les", () => this.lesson(true)]]);
+    const meet = this.meeting();
+    if (meet) {
+      const mins = Math.round((meet.start - now) / 60000), quiet = () => { this.quiet = `${meet.title}@${meet.start}`; localStorage.setItem("quiet", this.quiet); };
+      add("meeting", mins > 0 ? `${mins}m` : "now", "accent", `${meet.title} ${mins > 0 ? `in ${mins} min` : "is starting"}`,
+        [...(meet.url ? [["join", "Join", () => { quiet(); exec("open", [meet.url]); }]] : []), ["quiet", "Quiet", quiet]]);
+    }
+    // Sitting too long: it only goes away when I have been away from the Mac for a few minutes.
+    const water = shared("water") ?? {};
+    if (water.due) add("water", "H2O", "accent", `You have been sitting for ${Math.round((now - water.since) / 60000)} minutes. Stand up and get some water.`);
+    // Back from that break: the glass and the word cards are two buttons, in any order.
+    else if (water.offer && now - water.offer < OFFER) {
+      const over = () => { const w = shared("water") ?? {}; setShared("water", { ...w, offer: 0 }); };
+      const drank = this.drank === water.offer;
+      add("drank", "+1", "done", drank ? "One glass added. Now 20 woorden?" : "Welcome back. Did you drink? And do 20 woorden.", [
+        ...(drank ? [] : [["glass", "+1 glass", () => { const w = shared("water") ?? {}; this.drank = w.offer; setShared("water", { ...w, glasses: (w.glasses ?? 0) + 1 }); }]]),
+        ["cards", "20 woorden", () => { exec("open", [CARDS]); over(); }], ["no", drank ? "Not now" : "No", over]]);
+    }
+    // Morning start ran by itself (the dev-servers mod, at my first session).
+    const morning = shared("morning");
+    if (morning?.day === today && morning.auto && shared("morning.seen") !== today)
+      add("morning", "AM", "accent", "Master is pulled and the stacks are starting. Your brief is ready.", [["open", "Open the brief", () => run("mod.open", { name: "morning" })]]);
+    // My next train home is late or cancelled (the trains mod says so). Only while the trains
+    // block shows: hidden (at home, outside its hours) it does not run, so what it last shared is old.
+    const find = (n, id) => n && (n.id === id ? n : (n.children ?? []).map((c) => find(c, id)).find(Boolean));
+    const trains = find(layout(), "trains"), train = trains && !trains.hidden ? shared("train.alert") : null;
+    if (train && train !== this.quietTrain) add("train", "NS", "blocked", train, [["quiet", "Quiet", () => { this.quietTrain = train; }]]);
+    const nudge = shared("train.nudge");
+    if (nudge?.day === today && localStorage.getItem("nudged") !== nudge.day) add("nudge", "go", "accent", nudge.text, [["ok", "OK", () => { localStorage.setItem("nudged", nudge.day); }]]);
+    // Only a rise in "Requires my action" is news, not the standing pile.
+    const todo = Number(shared("my-work.action") ?? 0);
     if (this.seen < 0 || todo < this.seen) this.see(todo);
+    if (todo > this.seen) add("todo", `+${todo - this.seen}`, "blocked", `${todo - this.seen} new for you in My work`, [["show", "Show", () => {
+      this.see(todo);
+      run("layout.select", { stack: "panel-body", child: "my-work" }); run("layout.show", { id: "panel" });
+    }]]);
+    return list;
+  }
+
+  // The list goes to the notices block when it changed; the block is as tall as the list needs,
+  // and away when there is nothing.
+  post() {
+    if (shared("layout") !== LAYOUT) return;
+    const list = this.notices().map((n) => ({ ...n, acts: n.acts.map(({ key, label }) => ({ key, label })) })), text = JSON.stringify(list);
+    if (text === this.posted) return;
+    this.posted = text;
+    setShared("notices", list);
+    if (!list.length) return run("layout.hide", { id: BAR });
+    run("layout.resize", { id: BAR, px: 10 + list.reduce((sum, n) => sum + Math.ceil(n.text.length / LINE) * 17 + (n.acts.length ? 26 : 0) + 8, 0) });
+    run("layout.show", { id: BAR });
+  }
+
+  mood() {
+    const list = agents();
     const blocked = list.find((a) => a.status === "blocked");
     // Shortcut training comes first: it is about what I did a second ago, and it is gone in a few.
     const note = this.trainer.current();
@@ -240,37 +314,10 @@ export default class ForestSprite extends View {
     if (note) return note.clicked
       ? { art: "busy", bubble: note.key, color: "accent", say: `Next time: ${note.key} for ${note.label}.${note.clicks > 1 ? ` Clicked ${note.clicks} times today.` : ""}`, tip: "The key for what you just clicked", bob: 900, wide: true, go: null }
       : { art: "happy", bubble: note.key, color: "done", tip: "Done by key", bob: 600, go: null };
-    if (this.lessonDue()) return { art: "alert", bubble: "NL", color: "accent", say: "Het Journaal in Makkelijke Taal wacht op je.", tip: "Click for the Dutch lesson", bob: 700, wide: true, go: () => this.lesson(true) };
-    const meet = this.meeting();
-    if (meet && !blocked) {
-      const mins = Math.round((meet.start - Date.now()) / 60000);
-      return { art: "alert", bubble: mins > 0 ? `${mins}m` : "now", color: "accent", bob: 600,
-        say: `${meet.title} ${mins > 0 ? `in ${mins} min` : "is starting"}`, tip: meet.url ? "Click to join" : "Click to quiet",
-        go: () => { this.quiet = `${meet.title}@${meet.start}`; localStorage.setItem("quiet", this.quiet); if (meet.url) exec("open", [meet.url]); } };
-    }
     if (blocked) return { art: "alert", bubble: "!", color: "blocked", tip: blocked.title, bob: 500, go: () => run("pane.focus", { pane: blocked.pane }) };
-    // Sitting too long: it only goes away when I have been away from the Mac for a few minutes.
-    const water = shared("water") ?? {};
-    if (water.due) return { art: "alert", bubble: "H2O", color: "accent", say: `You have been sitting for ${Math.round((Date.now() - water.since) / 60000)} minutes. Go get some water.`, tip: "Goes away once you have been away for 3 minutes", bob: 800, wide: true, go: null };
-    if (water.offer && Date.now() - water.offer < OFFER) return { art: "happy", bubble: "+1", color: "done", say: "Welcome back. Did you drink? Click to add a glass, and do 20 woorden.", tip: "Click: one more glass, and Xitun opens for 20 word cards", bob: 900, wide: true,
-      go: () => { const w = shared("water") ?? {}; setShared("water", { ...w, glasses: (w.glasses ?? 0) + 1, offer: 0 }); exec("open", [CARDS]); } };
-    // Morning start ran by itself (the dev-servers mod, at my first session): a click opens its brief.
-    const today = new Date().toDateString(), morning = shared("morning");
-    if (morning?.day === today && morning.auto && shared("morning.seen") !== today)
-      return { art: "happy", bubble: "AM", color: "accent", say: "Master is pulled and the stacks are starting. Your brief is ready.", tip: "Click for the brief", bob: 900, wide: true, go: () => run("mod.open", { name: "morning" }) };
-    // My next train home is late or cancelled (the trains mod says so); a click quiets that one.
-    // Only while the trains block shows: hidden (at home, outside its hours) it does not run,
-    // so what it last shared is old.
-    const find = (n, id) => n && (n.id === id ? n : (n.children ?? []).map((c) => find(c, id)).find(Boolean));
-    const trains = find(layout(), "trains"), train = trains && !trains.hidden ? shared("train.alert") : null;
-    const nudge = shared("train.nudge");
-    if (!(train && train !== this.quietTrain) && nudge?.day === new Date().toDateString() && localStorage.getItem("nudged") !== nudge.day)
-      return { art: "happy", bubble: "go", color: "accent", say: nudge.text, tip: "Click to quiet", bob: 900, wide: true, go: () => { localStorage.setItem("nudged", nudge.day); } };
-    if (train && train !== this.quietTrain) return { art: "alert", bubble: "NS", color: "blocked", say: train, tip: "Click to quiet", bob: 700, go: () => { this.quietTrain = train; } };
-    if (todo > this.seen) return { art: "alert", bubble: `+${todo - this.seen}`, color: "blocked", tip: "New for you in My work", bob: 700, go: () => {
-      this.see(todo);
-      run("layout.select", { stack: "panel-body", child: "my-work" }); run("layout.show", { id: "panel" });
-    } };
+    // Something wants me: only its tag here, what it says and its buttons are in the sidebar's list.
+    const first = this.notices()[0];
+    if (first) return { art: first.color === "done" ? "happy" : "alert", bubble: first.tag, color: first.color, tip: `In the list beside me: ${first.text}`, bob: 800, go: null };
     // A word from my last lesson: hover to see whether I still know it.
     const minute = Math.floor(Date.now() / 60000), word = (this.learned ?? [])[Math.floor(minute / WORD_EVERY) % Math.max(1, (this.learned ?? []).length)];
     if (word && minute % WORD_EVERY === 0) return { art: "idle", bubble: "NL", color: "accent", say: word.nl, tip: [word.zh, word.en].filter(Boolean).join(" · "), bob: 1200, go: null };
