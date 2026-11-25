@@ -65,6 +65,8 @@ export default class ForestSprite extends View {
           if (c === "water") setShared("water", { ...(shared("water") ?? {}), offer: Date.now() });
           // Today's lesson once more, also when it is done already (to look at the dialog).
           if (c === "lesson") { setShared("dutch", { ...(shared("dutch") ?? {}), done: false, skipped: false, watchAt: null }); this.lesson(true); }
+          // The whole lesson at home in two minutes, to show it: nothing of it counts.
+          if (c === "demo") openOverlay({ mod: "dutch", kind: "dialog", width: (this.win?.[0] ?? 1100) - 60, height: (this.win?.[1] ?? 700) - 60, props: { demo: true, wide: this.win?.[0] ?? 1100 } });
           // The words of the last Journaal, without a lesson.
           if (c === "refresh") this.refresh(true);
           if (c === "words") openOverlay({ mod: "dutch", kind: "dialog", width: Math.min((this.win?.[0] ?? 1100) - 60, 1300), height: Math.min((this.win?.[1] ?? 700) - 60, 760), props: { look: true } });

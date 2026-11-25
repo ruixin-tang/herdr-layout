@@ -27,6 +27,10 @@ const URL = "https://npo.nl/start/serie/nos-journaal-in-makkelijke-taal/afleveri
 // Dutch Today (slow, about 6 minutes an episode, text and translation with it).
 const LISTEN_URL = "https://xitun.ltd/my/nl/daily-listening?view=show&source=1f221b58-74bf-4adc-a2c3-64799ea612c1";
 const WATCH = 8 * 60000, LISTEN = 6 * 60000, QUIZ = 5, REFRESH = 8;
+// props.demo (the sprite's "demo" command): the whole lesson at home in two minutes, to show it.
+// It keeps its own state, so today's real lesson, the streak and the learned words stay as they are.
+const demo = () => Boolean(props()?.demo), KEY = () => (demo() ? "dutch.demo" : "dutch");
+const T = () => (demo() ? { watch: 45000, listen: 20000, quiz: 3 } : { watch: WATCH, listen: LISTEN, quiz: QUIZ });
 const WORDS = () => `${appHome()}/data/dutch/words.json`, LEARNED = () => `${appHome()}/data/dutch/learned.json`;
 // cover.swift, built into data/dutch/cover when the source is newer. "news" lays a page over the
 // dialog (plain `open` if that fails), "close" takes it away, "dark" covers the other screens
@@ -55,18 +59,18 @@ export default class Dutch extends View {
     if (props()?.look) { cx.spawn(async (cx) => { this.words = await load(WORDS()); cx.notify(); }); return; }
     if (props()?.refresh) {
       this.set({ refreshAsked: new Date().toDateString() });
-      cx.spawn(async (cx) => { this.words = await load(LEARNED()); this.ask(REFRESH, shared("dutch")?.missed ?? []); cx.notify(); });
+      cx.spawn(async (cx) => { this.words = await load(LEARNED()); this.ask(REFRESH, shared(KEY())?.missed ?? []); cx.notify(); });
       return;
     }
-    const day = new Date().toDateString(), was = shared("dutch") ?? {};
+    const day = new Date().toDateString(), was = shared(KEY()) ?? {};
     // A new day starts clean; the streak, its last day and yesterday's words come along.
-    this.set(was.day === day ? { openedAt: Date.now() } : { day, openedAt: Date.now(), closedAt: 0, watchAt: null, stage: null, stageAt: 0, plan: null, done: false, skipped: false });
+    this.set(was.day === day && !demo() ? { openedAt: Date.now() } : { day, openedAt: Date.now(), closedAt: 0, watchAt: null, stage: null, stageAt: 0, plan: null, done: false, skipped: false });
     cx.spawn(async (cx) => {
       this.words = await load(WORDS());
-      if (!shared("dutch")?.watchAt) {
-        const plan = shared("my-work.place") === "home" ? "home" : "office";
+      if (!shared(KEY())?.watchAt) {
+        const plan = demo() || shared("my-work.place") === "home" ? "home" : "office";
         // At home to the end of the episode (and a little for the page to start), else the fixed time.
-        this.set({ watchAt: Date.now(), stage: "watch", plan, watchMs: plan === "home" && this.words?.seconds ? (this.words.seconds + 20) * 1000 : WATCH });
+        this.set({ watchAt: Date.now(), stage: "watch", plan, watchMs: plan === "home" && this.words?.seconds && !demo() ? (this.words.seconds + 20) * 1000 : T().watch });
         cover("news", this.words?.url ?? URL);
       }
       this.enter();
@@ -74,26 +78,26 @@ export default class Dutch extends View {
     });
     // The countdown, and the step to the next part.
     cx.timer.every(1000, (cx) => {
-      const s = shared("dutch") ?? {}, now = Date.now();
-      if (!s.done && s.stage === "watch" && s.watchAt && now - s.watchAt >= (s.watchMs ?? WATCH)) {
+      const s = shared(KEY()) ?? {}, now = Date.now();
+      if (!s.done && s.stage === "watch" && s.watchAt && now - s.watchAt >= (s.watchMs ?? T().watch)) {
         if (s.plan === "home" && (this.words?.words?.length ?? 0) >= 4) { this.set({ stage: "quiz" }); cover("close"); this.enter(); }
         else this.finish();
       }
-      if (!s.done && s.stage === "listen" && now - s.stageAt >= LISTEN) this.finish();
+      if (!s.done && s.stage === "listen" && now - s.stageAt >= T().listen) this.finish();
       cx.notify();
     });
   }
 
-  set(change) { setShared("dutch", { ...(shared("dutch") ?? {}), ...change }); }
+  set(change) { setShared(KEY(), { ...(shared(KEY()) ?? {}), ...change }); }
 
   // What the part I am in needs, also when the dialog comes back after a snooze: the other
   // screens covered for as long as it lasts (with the words only while the Journaal plays).
   enter() {
-    const s = shared("dutch") ?? {}, now = Date.now(), secs = (ms) => Math.ceil(ms / 1000) + 2;
+    const s = shared(KEY()) ?? {}, now = Date.now(), secs = (ms) => Math.ceil(ms / 1000) + 2;
     if (s.done) return;
-    if (s.stage === "watch" && s.watchAt + (s.watchMs ?? WATCH) > now) cover("dark", secs(s.watchAt + (s.watchMs ?? WATCH) - now), WORDS());
-    if (s.stage === "quiz") { cover("dark", 900); if (!this.quiz) this.ask(QUIZ, []); }
-    if (s.stage === "listen" && s.stageAt + LISTEN > now) cover("dark", secs(s.stageAt + LISTEN - now));
+    if (s.stage === "watch" && s.watchAt + (s.watchMs ?? T().watch) > now) cover("dark", secs(s.watchAt + (s.watchMs ?? T().watch) - now), WORDS());
+    if (s.stage === "quiz") { cover("dark", 900); if (!this.quiz) this.ask(T().quiz, []); }
+    if (s.stage === "listen" && s.stageAt + T().listen > now) cover("dark", secs(s.stageAt + T().listen - now));
   }
 
   // A quiz of n words from the list, the ones in `first` before the others.
@@ -136,7 +140,12 @@ export default class Dutch extends View {
   }
 
   finish() {
-    const s = shared("dutch") ?? {}, day = new Date().toDateString();
+    if (demo()) {
+      this.set({ done: true }); cover("stop"); cover("close");
+      notify({ title: "Demo klaar", body: "Zo gaat de les thuis: Journaal, woorden, luisteren. Dit telde niet mee.", level: "success", timeout: 8000 });
+      return closeOverlay(props().overlay);
+    }
+    const s = shared(KEY()) ?? {}, day = new Date().toDateString();
     const streak = s.last === before(day) ? (s.streak ?? 0) + 1 : s.last === day ? s.streak ?? 1 : 1;
     this.set({ done: true, streak, last: day, learned: this.words ? day : s.learned });
     cover("stop");
@@ -147,7 +156,7 @@ export default class Dutch extends View {
   }
 
   // Esc, or anything else that closes it: the sprite reads this as a snooze. The other screens come back.
-  async close() { if (props()?.look || props()?.refresh) return; this.set({ closedAt: Date.now() }); cover("stop"); }
+  async close() { if (props()?.look || props()?.refresh) return; this.set({ closedAt: Date.now() }); cover("stop"); if (demo()) cover("close"); }
 
   button(id, label, t, fn) {
     return div().id(id).px(10).py(4).rounded(8).cursor_pointer().flex_none().text_size(11).text_color(t.dim)
@@ -186,7 +195,7 @@ export default class Dutch extends View {
   }
 
   render() {
-    const t = theme(), s = shared("dutch") ?? {}, streak = s.streak ?? 0, now = Date.now();
+    const t = theme(), s = shared(KEY()) ?? {}, streak = s.streak ?? 0, now = Date.now();
     // Looking only: the whole list, each word with the sentence it was said in.
     if (props()?.look) return v_flex().id("dutch").size_full().px(40).py(28).gap(9).overflow_hidden().bg(t.popover).text_color(t.foreground)
       .child(div().text_size(18).font_semibold().pb(6).child(this.words ? `De woorden van het Journaal van ${this.words.date}  (klik op een woord of zin om het te horen)` : "Nog geen woordenlijst."))
@@ -202,10 +211,10 @@ export default class Dutch extends View {
       .child(div().text_size(11).text_color(t.dim).child("Esc: nu niet"));
     const kept = streak > 0 && (s.last === new Date().toDateString() || s.last === before(new Date().toDateString()));
     const stage = s.stage ?? "watch", home = s.plan === "home";
-    const until = stage === "listen" ? s.stageAt + LISTEN : (s.watchAt ?? now) + (s.watchMs ?? WATCH), left = Math.max(0, until - now);
+    const until = stage === "listen" ? s.stageAt + T().listen : (s.watchAt ?? now) + (s.watchMs ?? T().watch), left = Math.max(0, until - now);
     const line = stage === "quiz" ? "Kies de goede betekenis. Daarna 6 minuten luisteren."
       : stage === "listen" ? `Luisteren op Xitun. Je werk komt terug om ${clock(until)} (nog ${mmss(left)}).`
-      : home ? `Tot ${clock(until)} (nog ${mmss(left)}), daarna ${QUIZ} woorden en 6 minuten luisteren.`
+      : home ? `Tot ${clock(until)} (nog ${mmss(left)}), daarna ${T().quiz} woorden en 6 minuten luisteren.`
       : `Je werk komt terug om ${clock(until)} (nog ${mmss(left)}).`;
     // A page lies over the middle (cover.swift decides how wide), so the words get what is
     // left beside it and everything else sits in a strip at the bottom.
@@ -220,7 +229,7 @@ export default class Dutch extends View {
         .child(h_flex().gap(12).items_baseline()
           .child(div().text_size(20).font_semibold().child(stage === "quiz" ? "Wat betekent het?" : stage === "listen" ? "Goed luisteren!" : s.watchAt ? "Veel kijkplezier!" : "Tijd voor Nederlands"))
           .child(div().text_size(14).text_color(t.muted).child(line))
-          .child(div().text_size(13).text_color(kept ? t.accent : t.dim).child(kept ? `Reeks: ${streak} ${streak === 1 ? "dag" : "dagen"} achter elkaar` : "Vandaag begint een nieuwe reeks.")))
+          .child(div().text_size(13).text_color(kept ? t.accent : t.dim).child(demo() ? "Demo: telt niet mee" : kept ? `Reeks: ${streak} ${streak === 1 ? "dag" : "dagen"} achter elkaar` : "Vandaag begint een nieuwe reeks.")))
         .child(h_flex().gap(16).items_center()
           .when(stage !== "quiz", (el) => el.child(this.button("dutch-again", stage === "listen" ? "Open Xitun opnieuw" : "Open het Journaal opnieuw", t, () => { cover("news", stage === "listen" ? LISTEN_URL : this.words?.url ?? URL); })))
           .child(div().text_size(11).text_color(t.dim).child("Esc: over 5 minuten opnieuw (snooze)"))
