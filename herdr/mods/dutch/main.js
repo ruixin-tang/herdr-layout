@@ -248,7 +248,8 @@ export default class Dutch extends View {
             .children([[15, "15 min"], [30, "30 min"], [60, "1 uur"]].map(([m, label]) => this.button(`dutch-later-${m}`, label, t, () => { this.later(m); })))))
           .child(this.button("dutch-skip", this.armed ? (kept ? `Zeker? Je reeks van ${streak} stopt. Klik nog een keer.` : "Zeker? Klik nog een keer.") : "Niet vandaag (skip)", t, (_e, cx) => {
             if (!this.armed) { this.armed = true; cx.notify(); return; }
-            this.set({ skipped: true, streak: 0 });
+            // `lost`: what the streak was, for when the day turns out to be a sick day (the sprite's "sick").
+            this.set({ skipped: true, streak: 0, lost: streak });
             cover("stop");
             closeOverlay(props().overlay);
           }))));

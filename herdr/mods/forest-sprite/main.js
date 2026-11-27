@@ -80,6 +80,15 @@ export default class ForestSprite extends View {
           this.post();
           // Today's lesson once more, also when it is done already (to look at the dialog).
           if (c === "lesson") { setShared("dutch", { ...(shared("dutch") ?? {}), done: false, skipped: false, watchAt: null }); this.lesson(true); }
+          // I was sick (or away) the last working day: it neither counts nor breaks the streak.
+          // The streak is what it was before that day, and today's lesson goes on from it.
+          if (c === "sick") {
+            const s = shared("dutch") ?? {}, d = new Date();
+            do d.setDate(d.getDate() - 1); while (d.getDay() % 6 === 0);
+            if (s.last !== new Date().toDateString()) setShared("dutch", { ...s, last: d.toDateString(), streak: s.lost ?? s.streak ?? 0, lost: null });
+          }
+          // `forest-sprite.streak-6`: the streak set by hand.
+          if (/^streak-\d+$/.test(c)) setShared("dutch", { ...(shared("dutch") ?? {}), streak: Number(c.slice(7)), lost: null });
           // The whole lesson at home in two minutes, to show it: nothing of it counts.
           if (c === "demo") openOverlay({ mod: "dutch", kind: "dialog", width: (this.win?.[0] ?? 1100) - 60, height: (this.win?.[1] ?? 700) - 60, props: { demo: true, wide: this.win?.[0] ?? 1100 } });
           // The words of the last Journaal, without a lesson.

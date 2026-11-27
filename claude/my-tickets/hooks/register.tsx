@@ -14,6 +14,9 @@ const CACHE = '/Users/ruixintang/.cache/my-work/tickets.json'
 // The forest sprite reads the next day's meetings from here.
 const MEETINGS = '/Users/ruixintang/.cache/my-work/meetings.json'
 const MEETINGS_ERROR = '/Users/ruixintang/.cache/my-work/meetings.error.json'
+// A support duty swap the calendar does not show, per day: { "2026-11-27": false, "2026-11-30": true }.
+// A day in here wins over the Dev-support calendar.
+const DUTY_SWAPS = '/Users/ruixintang/.config/my-work/duty.json'
 
 // The Herdr panel's Refresh button writes the time of the click here. Every session looks every
 // ASKED_MS; the first one to see a click newer than the cache claims it and syncs the tickets.
@@ -213,7 +216,14 @@ const loadMeetings = async ($: EngineInterface, now: number) => {
     }))
     .sort((a, b) => a.start - b.start)
 
-  return { meetings, duty }
+  let swapped: boolean | undefined
+  try {
+    swapped = (JSON.parse(await $.fs.read(DUTY_SWAPS)) as Record<string, boolean>)[today]
+  } catch {
+    // no swaps
+  }
+
+  return { meetings, duty: swapped ?? duty }
 }
 
 type Done = { id: number; title: string; at: number }
